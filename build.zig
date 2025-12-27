@@ -4,14 +4,12 @@ const rl = @import("raylib-zig/build.zig");
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    var raylib = rl.getModule(b, "raylib-zig");
-    var raylib_math = rl.math.getModule(b, "raylib-zig");
+    const raylib = rl.getModule(b, target, optimize);
 
-    const exe = b.addExecutable(.{ .name = "lsr", .root_source_file = .{ .path = "src/main.zig" }, .optimize = optimize, .target = target });
+    const exe = b.addExecutable(.{ .name = "lsr", .root_source_file = b.path("src/main.zig"), .optimize = optimize, .target = target });
 
     rl.link(b, exe, target, optimize);
-    exe.addModule("raylib", raylib);
-    exe.addModule("raylib-math", raylib_math);
+    exe.root_module.addImport("raylib", raylib);
 
     const run_cmd = b.addRunArtifact(exe);
     const run_step = b.step("run", "run");

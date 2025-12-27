@@ -1,6 +1,7 @@
 .{
-    .name = "raylib-zig",
+    .name = .zigsteroids,
     .version = "0.1.1",
+    .fingerprint = 0x6ff7ae9e8c234ba0,
     .dependencies = .{
         .raylib = .{
             .url = "https://github.com/raysan5/raylib/archive/5.0.tar.gz",

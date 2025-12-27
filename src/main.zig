@@ -1,9 +1,9 @@
 const std = @import("std");
 const math = std.math;
-const rand = std.rand;
+const Random = std.Random;
 
 const rl = @import("raylib");
-const rlm = @import("raylib-math");
+const rlm = rl.math;
 const Vector2 = rl.Vector2;
 
 const THICKNESS = 2.5;
@@ -123,7 +123,7 @@ const State = struct {
     particles: std.ArrayList(Particle),
     projectiles: std.ArrayList(Projectile),
     aliens: std.ArrayList(Alien),
-    rand: rand.Random,
+    rand: Random,
     lives: usize = 0,
     lastScore: usize = 0,
     score: usize = 0,
@@ -148,7 +148,7 @@ const Sound = struct {
 var sound: Sound = undefined;
 
 fn getMyColor(icolor: MyColor) rl.Color {
-    var objcolor = switch (icolor) {
+    const objcolor = switch (icolor) {
         MyColor.white => rl.Color.ray_white,
         MyColor.green => rl.Color.green,
         MyColor.bright_white => rl.Color.white,
@@ -276,7 +276,7 @@ const AsteroidSize = enum {
 };
 
 fn drawAsteroid(pos: Vector2, size: AsteroidSize, seed: u64) !void {
-    var prng = rand.Xoshiro256.init(seed);
+    var prng = std.Random.Xoshiro256.init(seed);
     var random = prng.random();
 
     var points = try std.BoundedArray(Vector2, 16).init(0);
@@ -396,18 +396,18 @@ fn update() !void {
         const ROT_SPEED = 2;
         const SHIP_SPEED = 24;
 
-        if (rl.isKeyDown(.key_left)) {
+        if (rl.isKeyDown(.left)) {
             state.ship.rot -= state.delta * math.tau * ROT_SPEED;
         }
 
-        if (rl.isKeyDown(.key_right)) {
+        if (rl.isKeyDown(.right)) {
             state.ship.rot += state.delta * math.tau * ROT_SPEED;
         }
 
         const dirAngle = state.ship.rot + (math.pi * 0.5);
         const shipDir = Vector2.init(math.cos(dirAngle), math.sin(dirAngle));
 
-        if (rl.isKeyDown(.key_up)) {
+        if (rl.isKeyDown(.up)) {
             state.ship.vel = rlm.vector2Add(
                 state.ship.vel,
                 rlm.vector2Scale(shipDir, state.delta * SHIP_SPEED),
@@ -426,7 +426,7 @@ fn update() !void {
             @mod(state.ship.pos.y, SIZE.y),
         );
 
-        if (rl.isKeyPressed(.key_space) or rl.isMouseButtonPressed(.mouse_button_left)) {
+        if (rl.isKeyPressed(.space) or rl.isMouseButtonPressed(.left)) {
             try state.projectiles.append(.{
                 .pos = rlm.vector2Add(
                     state.ship.pos,
@@ -703,12 +703,12 @@ fn qrcColor() rl.Color {
     if (state.quantumRematerizationCount==0) {
         return getMyColor(MyColor.bright_white);
     }
-    var qrcPct: f32 = 1.0 - @as(f32, @floatFromInt(state.quantumRematerizationCount)) / @as(f32, @floatFromInt(QUANTUM_REMATERIZATION_LIMIT));
+    const qrcPct: f32 = 1.0 - @as(f32, @floatFromInt(state.quantumRematerizationCount)) / @as(f32, @floatFromInt(QUANTUM_REMATERIZATION_LIMIT));
     //var a = qrcPct;
     //qrcPct = a;
 
-    var c1 = rl.Color.dark_blue;
-    var c2 = rl.Color.white;
+    const c1 = rl.Color.dark_blue;
+    const c2 = rl.Color.white;
 
     var cnow: rl.Color = rl.Color.white;
     cnow.r = c1.r + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.r - c1.r)) ));
@@ -735,7 +735,7 @@ fn render() !void {
     try drawNumber(state.score, Vector2.init(SIZE.x - SCALE, SCALE));
 
     if (!state.ship.isDead()) {
-        var shipcolor: rl.Color = qrcColor();
+        const shipcolor: rl.Color = qrcColor();
         
         drawLines(
             state.ship.pos,
@@ -746,7 +746,7 @@ fn render() !void {
             shipcolor,
         );
 
-        if (rl.isKeyDown(.key_w) and @mod(@as(i32, @intFromFloat(state.now * 20)), 2) == 0) {
+        if (rl.isKeyDown(.w) and @mod(@as(i32, @intFromFloat(state.now * 20)), 2) == 0) {
             drawLines(
                 state.ship.pos,
                 SCALE,
@@ -866,7 +866,7 @@ pub fn main() !void {
     // rl.setMasterVolume(0.8);
     defer rl.closeAudioDevice();
 
-    var prng = rand.Xoshiro256.init(@bitCast(std.time.timestamp()));
+    var prng = std.Random.Xoshiro256.init(@bitCast(std.time.timestamp()));
 
     state = .{
         .ship = .{
@@ -889,12 +889,12 @@ pub fn main() !void {
     defer state.aliens.deinit();
 
     sound = .{
-        .bloopLo = rl.loadSound("bloop_lo.wav"),
-        .bloopHi = rl.loadSound("bloop_hi.wav"),
-        .shoot = rl.loadSound("shoot.wav"),
-        .thrust = rl.loadSound("thrust.wav"),
-        .asteroid = rl.loadSound("asteroid.wav"),
-        .explode = rl.loadSound("explode.wav"),
+        .bloopLo = try rl.loadSound("bloop_lo.wav"),
+        .bloopHi = try rl.loadSound("bloop_hi.wav"),
+        .shoot = try rl.loadSound("shoot.wav"),
+        .thrust = try rl.loadSound("thrust.wav"),
+        .asteroid = try rl.loadSound("asteroid.wav"),
+        .explode = try rl.loadSound("explode.wav"),
     };
 
     try resetGame();
