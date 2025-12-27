@@ -9,6 +9,17 @@ const Vector2 = rl.Vector2;
 const THICKNESS = 2.5;
 const SCALE = 38.0;
 const SIZE = Vector2.init(640 * 2, 480 * 2);
+const QUANTUM_REMATERIZATION_LIMIT = 1200;
+const DEATH_IN_SECS = 10.0;
+
+const MyColor = enum(u4) {
+    white,
+    green,
+    bright_white,
+    orange,
+    blue,
+    dark_blue
+};
 
 const Ship = struct {
     pos: Vector2,
@@ -35,29 +46,29 @@ const AlienSize = enum {
 
     fn collisionSize(self: @This()) f32 {
         return switch (self) {
-            .BIG => SCALE * 0.8,
-            .SMALL => SCALE * 0.5,
+            .BIG => SCALE * 0.7,
+            .SMALL => SCALE * 0.6,
         };
     }
 
     fn dirChangeTime(self: @This()) f32 {
         return switch (self) {
             .BIG => 0.85,
-            .SMALL => 0.35,
+            .SMALL => 0.55,
         };
     }
 
     fn shotTime(self: @This()) f32 {
         return switch (self) {
-            .BIG => 1.25,
-            .SMALL => 0.75,
-        };
+            .BIG => 2.55,
+            .SMALL => 2.05,
+        } ;
     }
 
     fn speed(self: @This()) f32 {
         return switch (self) {
-            .BIG => 3,
-            .SMALL => 6,
+            .BIG => 2,
+            .SMALL => 4,
         };
     }
 };
@@ -80,6 +91,7 @@ const Particle = struct {
     pos: Vector2,
     vel: Vector2,
     ttl: f32,
+    player: bool = false,
 
     values: union(ParticleType) {
         LINE: struct {
@@ -97,6 +109,7 @@ const Projectile = struct {
     vel: Vector2,
     ttl: f32,
     spawn: f32,
+    player: bool = false,
     remove: bool = false,
 };
 
@@ -118,6 +131,9 @@ const State = struct {
     lastBloop: usize = 0,
     bloop: usize = 0,
     frame: usize = 0,
+    quantumRematerizationCount: u32 = QUANTUM_REMATERIZATION_LIMIT,
+    resetTime: f32 = 0.0,
+    bonusShipScore: usize = 10000,
 };
 var state: State = undefined;
 
@@ -131,7 +147,19 @@ const Sound = struct {
 };
 var sound: Sound = undefined;
 
-fn drawLines(org: Vector2, scale: f32, rot: f32, points: []const Vector2, connect: bool) void {
+fn getMyColor(icolor: MyColor) rl.Color {
+    var objcolor = switch (icolor) {
+        MyColor.white => rl.Color.ray_white,
+        MyColor.green => rl.Color.green,
+        MyColor.bright_white => rl.Color.white,
+        MyColor.orange => rl.Color.orange,
+        MyColor.blue => rl.Color.blue,
+        MyColor.dark_blue => rl.Color.dark_blue,
+        };
+    return objcolor;
+}
+
+fn drawLines(org: Vector2, scale: f32, rot: f32, points: []const Vector2, connect: bool, objcolor: rl.Color) void {
     const Transformer = struct {
         org: Vector2,
         scale: f32,
@@ -151,13 +179,14 @@ fn drawLines(org: Vector2, scale: f32, rot: f32, points: []const Vector2, connec
         .rot = rot,
     };
 
+    
     const bound = if (connect) points.len else (points.len - 1);
     for (0..bound) |i| {
         rl.drawLineEx(
             t.apply(points[i]),
             t.apply(points[(i + 1) % points.len]),
             THICKNESS,
-            rl.Color.white,
+            objcolor,
         );
     }
 }
@@ -196,7 +225,7 @@ fn drawNumber(n: usize, pos: Vector2) !void {
             try points.append(Vector2.init(p[0] - 0.5, (1.0 - p[1]) - 0.5));
         }
 
-        drawLines(pos2, SCALE * 0.8, 0, points.slice(), false);
+        drawLines(pos2, SCALE * 0.8, 0, points.slice(), false, getMyColor(MyColor.white));
         pos2.x -= SCALE;
         val /= 10;
         if (val == 0) {
@@ -265,13 +294,14 @@ fn drawAsteroid(pos: Vector2, size: AsteroidSize, seed: u64) !void {
         );
     }
 
-    drawLines(pos, size.size(), 0.0, points.slice(), true);
+    drawLines(pos, size.size(), 0.0, points.slice(), true, getMyColor(MyColor.white) );
 }
 
-fn splatLines(pos: Vector2, count: usize) !void {
+fn splatLines(pos: Vector2, count: usize, player: bool) !void {
     for (0..count) |_| {
         const angle = math.tau * state.rand.float(f32);
         try state.particles.append(.{
+            .player = player,
             .pos = rlm.vector2Add(
                 pos,
                 Vector2.init(state.rand.float(f32) * 3, state.rand.float(f32) * 3),
@@ -350,27 +380,34 @@ fn hitAsteroid(a: *Asteroid, impact: ?Vector2) !void {
 
 fn update() !void {
     if (state.reset) {
-        state.reset = false;
-        try resetGame();
+        if ((state.now - state.resetTime) > DEATH_IN_SECS) {
+            // pause between games. Doesn't work.
+            state.reset = false;
+            try resetGame();
+        }
     }
 
     if (!state.ship.isDead()) {
+        if (state.quantumRematerizationCount>0) {
+            // After a respawn you have a small window of immunity
+            state.quantumRematerizationCount = state.quantumRematerizationCount - 1;
+        }
         // rotations / second
         const ROT_SPEED = 2;
         const SHIP_SPEED = 24;
 
-        if (rl.isKeyDown(.key_a)) {
+        if (rl.isKeyDown(.key_left)) {
             state.ship.rot -= state.delta * math.tau * ROT_SPEED;
         }
 
-        if (rl.isKeyDown(.key_d)) {
+        if (rl.isKeyDown(.key_right)) {
             state.ship.rot += state.delta * math.tau * ROT_SPEED;
         }
 
         const dirAngle = state.ship.rot + (math.pi * 0.5);
         const shipDir = Vector2.init(math.cos(dirAngle), math.sin(dirAngle));
 
-        if (rl.isKeyDown(.key_w)) {
+        if (rl.isKeyDown(.key_up)) {
             state.ship.vel = rlm.vector2Add(
                 state.ship.vel,
                 rlm.vector2Scale(shipDir, state.delta * SHIP_SPEED),
@@ -398,17 +435,20 @@ fn update() !void {
                 .vel = rlm.vector2Scale(shipDir, 10.0),
                 .ttl = 2.0,
                 .spawn = state.now,
+                .player = true,
             });
             rl.playSound(sound.shoot);
 
-            state.ship.vel = rlm.vector2Add(state.ship.vel, rlm.vector2Scale(shipDir, -0.5));
+            state.ship.vel = rlm.vector2Add(state.ship.vel, rlm.vector2Scale(shipDir, -0.25));
         }
 
         // check for projectile v. ship collision
         for (state.projectiles.items) |*p| {
-            if (!p.remove and (state.now - p.spawn) > 0.15 and rlm.vector2Distance(state.ship.pos, p.pos) < (SCALE * 0.7)) {
+            if (!p.player and !p.remove and state.quantumRematerizationCount==0) {
+            if ( (state.now - p.spawn) > 0.15 and rlm.vector2Distance(state.ship.pos, p.pos) < (SCALE * 0.7)) {
                 p.remove = true;
                 state.ship.deathTime = state.now;
+            }
             }
         }
     }
@@ -430,7 +470,7 @@ fn update() !void {
             );
 
             // check for ship v. asteroid collision
-            if (!state.ship.isDead() and rlm.vector2Distance(a.pos, state.ship.pos) < a.size.size() * a.size.collisionScale()) {
+            if (state.quantumRematerizationCount==0 and !state.ship.isDead() and rlm.vector2Distance(a.pos, state.ship.pos) < a.size.size() * a.size.collisionScale()) {
                 state.ship.deathTime = state.now;
                 try hitAsteroid(a, rlm.vector2Normalize(state.ship.vel));
             }
@@ -529,7 +569,7 @@ fn update() !void {
                     @mod(a.pos.y, SIZE.y),
                 );
 
-                if ((state.now - a.lastShot) > a.size.shotTime()) {
+                if ((state.now - a.lastShot) > a.size.shotTime() + 4 * state.rand.float(f32) ) {
                     a.lastShot = state.now;
                     const dir = rlm.vector2Normalize(rlm.vector2Subtract(state.ship.pos, a.pos));
                     try state.projectiles.append(.{
@@ -548,7 +588,7 @@ fn update() !void {
             if (a.remove) {
                 rl.playSound(sound.asteroid);
                 try splatDots(a.pos, 15);
-                try splatLines(a.pos, 4);
+                try splatLines(a.pos, 4, false);
                 _ = state.aliens.swapRemove(i);
             } else {
                 i += 1;
@@ -559,11 +599,17 @@ fn update() !void {
     if (state.ship.deathTime == state.now) {
         rl.playSound(sound.explode);
         try splatDots(state.ship.pos, 20);
-        try splatLines(state.ship.pos, 5);
+        try splatLines(state.ship.pos, 5, true);
     }
 
     if (state.ship.isDead() and (state.now - state.ship.deathTime) > 3.0) {
-        try resetStage();
+        if (state.lives == 0) {
+            if ((state.now - state.ship.deathTime) > DEATH_IN_SECS) {
+                try resetStage();
+            }
+        } else {
+            try resetStage();
+        }
     }
 
     const bloopIntensity = @min(@as(usize, @intFromFloat(state.now - state.stageStart)) / 15, 3);
@@ -585,6 +631,8 @@ fn update() !void {
     if (state.asteroids.items.len == 0 and state.aliens.items.len == 0) {
         try resetAsteroids();
     }
+
+    
 
     if ((state.lastScore / 5000) != (state.score / 5000)) {
         try state.aliens.append(.{
@@ -608,6 +656,12 @@ fn update() !void {
         });
     }
 
+    if (state.score > state.bonusShipScore) {
+        // Hand out bonus ships
+        state.lives += 1;
+        state.bonusShipScore += 10000;
+    }
+
     state.lastScore = state.score;
 }
 
@@ -626,14 +680,14 @@ fn drawAlien(pos: Vector2, size: AlienSize) void {
         Vector2.init(-0.3, -0.3),
         Vector2.init(-0.5, 0.0),
         Vector2.init(0.5, 0.0),
-    }, false);
+    }, false, getMyColor(MyColor.green) );
 
     drawLines(pos, SCALE * scale, 0, &.{
         Vector2.init(-0.2, -0.3),
         Vector2.init(-0.1, -0.5),
         Vector2.init(0.1, -0.5),
         Vector2.init(0.2, -0.3),
-    }, false);
+    }, false, getMyColor(MyColor.green) );
 }
 
 const SHIP_LINES = [_]Vector2{
@@ -644,6 +698,26 @@ const SHIP_LINES = [_]Vector2{
     Vector2.init(-0.3, -0.4),
 };
 
+// quantumRematerizationCount coloring of the ship as it materializes.
+fn qrcColor() rl.Color {
+    if (state.quantumRematerizationCount==0) {
+        return getMyColor(MyColor.bright_white);
+    }
+    var qrcPct: f32 = 1.0 - @as(f32, @floatFromInt(state.quantumRematerizationCount)) / @as(f32, @floatFromInt(QUANTUM_REMATERIZATION_LIMIT));
+    //var a = qrcPct;
+    //qrcPct = a;
+
+    var c1 = rl.Color.dark_blue;
+    var c2 = rl.Color.white;
+
+    var cnow: rl.Color = rl.Color.white;
+    cnow.r = c1.r + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.r - c1.r)) ));
+    cnow.g = c1.g + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.g - c1.g)) ));
+    cnow.r = c1.b + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.b - c1.b))));
+
+    return cnow;
+}
+
 fn render() !void {
     // draw remaining lives
     for (0..state.lives) |i| {
@@ -653,6 +727,7 @@ fn render() !void {
             -math.pi,
             &SHIP_LINES,
             true,
+            getMyColor(MyColor.bright_white)
         );
     }
 
@@ -660,12 +735,15 @@ fn render() !void {
     try drawNumber(state.score, Vector2.init(SIZE.x - SCALE, SCALE));
 
     if (!state.ship.isDead()) {
+        var shipcolor: rl.Color = qrcColor();
+        
         drawLines(
             state.ship.pos,
             SCALE,
             state.ship.rot,
             &SHIP_LINES,
             true,
+            shipcolor,
         );
 
         if (rl.isKeyDown(.key_w) and @mod(@as(i32, @intFromFloat(state.now * 20)), 2) == 0) {
@@ -679,6 +757,7 @@ fn render() !void {
                     Vector2.init(0.3, -0.4),
                 },
                 true,
+                getMyColor(MyColor.white)
             );
         }
     }
@@ -692,7 +771,13 @@ fn render() !void {
     }
 
     for (state.particles.items) |p| {
+        var objcolor = MyColor.bright_white;
+        if (p.player!=true) {
+            objcolor = MyColor.green;
+        }
+
         switch (p.values) {
+
             .LINE => |line| {
                 drawLines(
                     p.pos,
@@ -703,6 +788,7 @@ fn render() !void {
                         Vector2.init(0.5, 0),
                     },
                     true,
+                    getMyColor(objcolor)
                 );
             },
             .DOT => |dot| {
@@ -719,7 +805,7 @@ fn render() !void {
 fn resetAsteroids() !void {
     try state.asteroids.resize(0);
 
-    for (0..(30 + state.score / 1500)) |_| {
+    for (0..(15 + state.score / 1500)) |_| {
         const angle = math.tau * state.rand.float(f32);
         const size = state.rand.enumValue(AsteroidSize);
         try state.asteroids_queue.append(.{
@@ -750,9 +836,11 @@ fn resetGame() !void {
 // reset after losing a life
 fn resetStage() !void {
     if (state.ship.isDead()) {
-        if (state.lives == 0) {
+        if (state.lives == 0 ) {
+            state.resetTime = state.now;
             state.reset = true;
         } else {
+            state.quantumRematerizationCount = QUANTUM_REMATERIZATION_LIMIT;
             state.lives -= 1;
         }
     }
@@ -792,6 +880,7 @@ pub fn main() !void {
         .projectiles = std.ArrayList(Projectile).init(allocator),
         .aliens = std.ArrayList(Alien).init(allocator),
         .rand = prng.random(),
+        .quantumRematerizationCount = QUANTUM_REMATERIZATION_LIMIT,
     };
     defer state.asteroids.deinit();
     defer state.asteroids_queue.deinit();
