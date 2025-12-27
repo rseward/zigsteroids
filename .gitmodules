@@ -1,3 +1,4 @@
 [submodule "raylib-zig"]
 	path = raylib-zig
-	url = https://github.com/Not-Nik/raylib-zig
+	url = https://github.com/rseward/raylib-zig
+	branch = zig-0.14
