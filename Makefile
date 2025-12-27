@@ -1,6 +1,7 @@
 init:
 	# Pull in the raylib-zig submodule
 	git submodule update --init --recursive
+	git submodule update --remote
 
 run:
 	$(HOME)/bin/zig build run
