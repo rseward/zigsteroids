@@ -1,10 +1,11 @@
 .{
-    .name = "raylib-zig",
+    .name = .zigsteroids,
     .version = "0.1.1",
+    .fingerprint = 0x6ff7ae9e8c234ba0,
     .dependencies = .{
-        .raylib = .{
-            .url = "https://github.com/raysan5/raylib/archive/5.0.tar.gz",
-            .hash = "1220c28847ca8e8756734ae84355802b764c9d9cf4de057dbc6fc2b15c56e726f27b",
+        .raylib_zig = .{
+            .url = "git+https://github.com/raylib-zig/raylib-zig#a4d18b2d1cf8fdddec68b5b084535fca0475f466",
+            .hash = "raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P",
         },
     },
     .paths = .{""},
