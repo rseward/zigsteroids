@@ -4,8 +4,8 @@
     .fingerprint = 0x6ff7ae9e8c234ba0,
     .dependencies = .{
         .raylib_zig = .{
-            .url = "git+https://github.com/Not-Nik/raylib-zig#7bdb0cd320454d5ee12b6aa734c63be589722261",
-            .hash = "raylib_zig-5.6.0-dev-KE8REM40BQBFO3EvEVqWU0QjNQXcEuGeQNIuwau-V3uN",
+            .url = "git+https://github.com/raylib-zig/raylib-zig#a4d18b2d1cf8fdddec68b5b084535fca0475f466",
+            .hash = "raylib_zig-5.6.0-dev-KE8REL5MBQAf3p497t52Xw9P7ojndIkVOWPXnLiLLw2P",
         },
     },
     .paths = .{""},

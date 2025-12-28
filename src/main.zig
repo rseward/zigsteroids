@@ -124,6 +124,7 @@ const State = struct {
     projectiles: std.ArrayList(Projectile),
     aliens: std.ArrayList(Alien),
     rand: Random,
+    allocator: std.mem.Allocator,
     lives: usize = 0,
     lastScore: usize = 0,
     score: usize = 0,
@@ -220,12 +221,13 @@ fn drawNumber(n: usize, pos: Vector2) !void {
     //pos2.x += @as(f32, @floatFromInt(digits)) * SCALE;
     val = n;
     while (val >= 0) {
-        var points = try std.BoundedArray(Vector2, 16).init(0);
+        var buffer: [16]Vector2 = undefined;
+        var points = std.ArrayListUnmanaged(Vector2).initBuffer(&buffer);
         for (NUMBER_LINES[val % 10]) |p| {
-            try points.append(Vector2.init(p[0] - 0.5, (1.0 - p[1]) - 0.5));
+            points.appendAssumeCapacity(Vector2.init(p[0] - 0.5, (1.0 - p[1]) - 0.5));
         }
 
-        drawLines(pos2, SCALE * 0.8, 0, points.slice(), false, getMyColor(MyColor.white));
+        drawLines(pos2, SCALE * 0.8, 0, points.items, false, getMyColor(MyColor.white));
         pos2.x -= SCALE;
         val /= 10;
         if (val == 0) {
@@ -279,7 +281,8 @@ fn drawAsteroid(pos: Vector2, size: AsteroidSize, seed: u64) !void {
     var prng = std.Random.Xoshiro256.init(seed);
     var random = prng.random();
 
-    var points = try std.BoundedArray(Vector2, 16).init(0);
+    var buffer: [16]Vector2 = undefined;
+    var points = std.ArrayListUnmanaged(Vector2).initBuffer(&buffer);
     const n = random.intRangeLessThan(i32, 8, 15);
 
     for (0..@intCast(n)) |i| {
@@ -289,18 +292,18 @@ fn drawAsteroid(pos: Vector2, size: AsteroidSize, seed: u64) !void {
         }
 
         const angle: f32 = (@as(f32, @floatFromInt(i)) * (math.tau / @as(f32, @floatFromInt(n)))) + (math.pi * 0.125 * random.float(f32));
-        try points.append(
+        points.appendAssumeCapacity(
             rlm.vector2Scale(Vector2.init(math.cos(angle), math.sin(angle)), radius),
         );
     }
 
-    drawLines(pos, size.size(), 0.0, points.slice(), true, getMyColor(MyColor.white) );
+    drawLines(pos, size.size(), 0.0, points.items, true, getMyColor(MyColor.white) );
 }
 
 fn splatLines(pos: Vector2, count: usize, player: bool) !void {
     for (0..count) |_| {
         const angle = math.tau * state.rand.float(f32);
-        try state.particles.append(.{
+        try state.particles.append(state.allocator, .{
             .player = player,
             .pos = rlm.vector2Add(
                 pos,
@@ -324,7 +327,7 @@ fn splatLines(pos: Vector2, count: usize, player: bool) !void {
 fn splatDots(pos: Vector2, count: usize) !void {
     for (0..count) |_| {
         const angle = math.tau * state.rand.float(f32);
-        try state.particles.append(.{
+        try state.particles.append(state.allocator, .{
             .pos = rlm.vector2Add(
                 pos,
                 Vector2.init(state.rand.float(f32) * 3, state.rand.float(f32) * 3),
@@ -363,7 +366,7 @@ fn hitAsteroid(a: *Asteroid, impact: ?Vector2) !void {
             else => unreachable,
         };
 
-        try state.asteroids_queue.append(.{
+        try state.asteroids_queue.append(state.allocator, .{
             .pos = a.pos,
             .vel = rlm.vector2Add(
                 rlm.vector2Scale(
@@ -427,7 +430,7 @@ fn update() !void {
         );
 
         if (rl.isKeyPressed(.space) or rl.isMouseButtonPressed(.left)) {
-            try state.projectiles.append(.{
+            try state.projectiles.append(state.allocator, .{
                 .pos = rlm.vector2Add(
                     state.ship.pos,
                     rlm.vector2Scale(shipDir, SCALE * 0.55),
@@ -455,9 +458,9 @@ fn update() !void {
 
     // add asteroids from queue
     for (state.asteroids_queue.items) |a| {
-        try state.asteroids.append(a);
+        try state.asteroids.append(state.allocator, a);
     }
-    try state.asteroids_queue.resize(0);
+    try state.asteroids_queue.resize(state.allocator, 0);
 
     {
         var i: usize = 0;
@@ -572,7 +575,7 @@ fn update() !void {
                 if ((state.now - a.lastShot) > a.size.shotTime() + 4 * state.rand.float(f32) ) {
                     a.lastShot = state.now;
                     const dir = rlm.vector2Normalize(rlm.vector2Subtract(state.ship.pos, a.pos));
-                    try state.projectiles.append(.{
+                    try state.projectiles.append(state.allocator, .{
                         .pos = rlm.vector2Add(
                             a.pos,
                             rlm.vector2Scale(dir, SCALE * 0.55),
@@ -635,7 +638,7 @@ fn update() !void {
     
 
     if ((state.lastScore / 5000) != (state.score / 5000)) {
-        try state.aliens.append(.{
+        try state.aliens.append(state.allocator, .{
             .pos = Vector2.init(
                 if (state.rand.boolean()) 0 else SIZE.x - SCALE,
                 state.rand.float(f32) * SIZE.y,
@@ -646,7 +649,7 @@ fn update() !void {
     }
 
     if ((state.lastScore / 8000) != (state.score / 8000)) {
-        try state.aliens.append(.{
+        try state.aliens.append(state.allocator, .{
             .pos = Vector2.init(
                 if (state.rand.boolean()) 0 else SIZE.x - SCALE,
                 state.rand.float(f32) * SIZE.y,
@@ -803,12 +806,12 @@ fn render() !void {
 }
 
 fn resetAsteroids() !void {
-    try state.asteroids.resize(0);
+    try state.asteroids.resize(state.allocator, 0);
 
     for (0..(15 + state.score / 1500)) |_| {
         const angle = math.tau * state.rand.float(f32);
         const size = state.rand.enumValue(AsteroidSize);
-        try state.asteroids_queue.append(.{
+        try state.asteroids_queue.append(state.allocator, .{
             .pos = Vector2.init(
                 state.rand.float(f32) * SIZE.x,
                 state.rand.float(f32) * SIZE.y,
@@ -874,19 +877,20 @@ pub fn main() !void {
             .vel = Vector2.init(0, 0),
             .rot = 0.0,
         },
-        .asteroids = std.ArrayList(Asteroid).init(allocator),
-        .asteroids_queue = std.ArrayList(Asteroid).init(allocator),
-        .particles = std.ArrayList(Particle).init(allocator),
-        .projectiles = std.ArrayList(Projectile).init(allocator),
-        .aliens = std.ArrayList(Alien).init(allocator),
+        .asteroids = .empty,
+        .asteroids_queue = .empty,
+        .particles = .empty,
+        .projectiles = .empty,
+        .aliens = .empty,
         .rand = prng.random(),
+        .allocator = allocator,
         .quantumRematerizationCount = QUANTUM_REMATERIZATION_LIMIT,
     };
-    defer state.asteroids.deinit();
-    defer state.asteroids_queue.deinit();
-    defer state.particles.deinit();
-    defer state.projectiles.deinit();
-    defer state.aliens.deinit();
+    defer state.asteroids.deinit(allocator);
+    defer state.asteroids_queue.deinit(allocator);
+    defer state.particles.deinit(allocator);
+    defer state.projectiles.deinit(allocator);
+    defer state.aliens.deinit(allocator);
 
     sound = .{
         .bloopLo = try rl.loadSound("bloop_lo.wav"),
