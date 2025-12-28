@@ -893,12 +893,12 @@ pub fn main() !void {
     defer state.aliens.deinit(allocator);
 
     sound = .{
-        .bloopLo = try rl.loadSound("bloop_lo.wav"),
-        .bloopHi = try rl.loadSound("bloop_hi.wav"),
-        .shoot = try rl.loadSound("shoot.wav"),
-        .thrust = try rl.loadSound("thrust.wav"),
-        .asteroid = try rl.loadSound("asteroid.wav"),
-        .explode = try rl.loadSound("explode.wav"),
+        .bloopLo = try rl.loadSound("resources/bloop_lo.wav"),
+        .bloopHi = try rl.loadSound("resources/bloop_hi.wav"),
+        .shoot = try rl.loadSound("resources/shoot.wav"),
+        .thrust = try rl.loadSound("resources/thrust.wav"),
+        .asteroid = try rl.loadSound("resources/asteroid.wav"),
+        .explode = try rl.loadSound("resources/explode.wav"),
     };
 
     try resetGame();
