@@ -801,7 +801,8 @@ fn render() !void {
     }
 
     for (state.projectiles.items) |p| {
-        rl.drawCircleV(p.pos, @max(SCALE * 0.05, 1), rl.Color.white);
+        const bulletColor: rl.Color = if (p.player) rl.Color.white else rl.Color.green;
+        rl.drawCircleV(p.pos, @max(SCALE * 0.05, 1), bulletColor);
     }
 }
 
