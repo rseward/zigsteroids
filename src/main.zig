@@ -11,8 +11,8 @@ const SCALE = 38.0;
 const SIZE = Vector2.init(640 * 2, 480 * 2);
 const QUANTUM_REMATERIZATION_LIMIT = 1200;
 const DEATH_IN_SECS = 10.0;
-const SHIELD_DURATION = 0.25;
-const SHIELD_RECHARGE = 5.0;
+const SHIELD_DURATION = 0.5;
+const SHIELD_RECHARGE = 25.0;
 const SHIELD_RADIUS = SCALE * 1.5;
 
 const MyColor = enum(u4) {
@@ -906,10 +906,10 @@ fn render() !void {
     if (!state.ship.isDead() and !state.shieldActive and state.shieldReadyTime > state.now and state.shieldReadyTime > 0) {
         const elapsed = state.now - (state.shieldReadyTime - SHIELD_RECHARGE);
         const progress = @min(elapsed / SHIELD_RECHARGE, 1.0);
-        // Border starts thick at edges and closes inward as it recharges
+        // Border starts thin and grows thicker as recharge progresses
         const max_margin: f32 = 30;
-        const margin = max_margin * (1.0 - progress);
-        const border_alpha: u8 = @as(u8, @intFromFloat((1.0 - progress) * 150 + 40));
+        const margin = max_margin * progress;
+        const border_alpha: u8 = @as(u8, @intFromFloat(progress * 150 + 40));
         const border_color = rl.Color.init(180, 0, 255, border_alpha);
         rl.drawRectangleRec(rl.Rectangle.init(0, 0, SIZE.x, margin), border_color);
         rl.drawRectangleRec(rl.Rectangle.init(0, SIZE.y - margin, SIZE.x, margin), border_color);
