@@ -384,11 +384,12 @@ fn hitAsteroid(a: *Asteroid, impact: ?Vector2) !void {
 
 fn update() !void {
     // Pause/unpause handling
-    if (rl.isKeyPressed(.h) or rl.isKeyPressed(.p)) {
-        state.paused = true;
-    }
-    if (state.paused) {
-        if (rl.isKeyPressed(.space)) {
+    if (!state.paused) {
+        if (rl.isKeyPressed(.h) or rl.isKeyPressed(.p)) {
+            state.paused = true;
+        }
+    } else {
+        if (rl.isKeyPressed(.space) or rl.isKeyPressed(.p) or rl.isKeyPressed(.h)) {
             state.paused = false;
         }
         return;
@@ -735,14 +736,14 @@ fn qrcColor() rl.Color {
 
 fn drawHelpBox() void {
     const lines = [_][:0]const u8{
-        "PAUSED",
+        "Large Space Rocks",
         "",
         "LEFT/RIGHT  Rotate",
         "UP           Thrust",
         "SPACE        Shoot",
         "H / P        Pause",
         "",
-        "Press SPACE to resume",
+        "PAUSED",
     };
 
     const font_size: i32 = 30;
@@ -756,9 +757,9 @@ fn drawHelpBox() void {
     const panel_x = (SIZE.x - panel_width) / 2;
     const panel_y = (SIZE.y - panel_height) / 2;
 
-    // Translucent Xbox-green panel
-    const panel_color = rl.Color.init(16, 124, 16, 200);
-    const border_color = rl.Color.init(0, 255, 0, 220);
+    // Translucent blue panel
+    const panel_color = rl.Color.init(16, 60, 140, 200);
+    const border_color = rl.Color.init(80, 160, 255, 220);
     rl.drawRectangleRec(rl.Rectangle.init(panel_x, panel_y, panel_width, panel_height), panel_color);
     rl.drawRectangleLinesEx(rl.Rectangle.init(panel_x, panel_y, panel_width, panel_height), 2, border_color);
 
