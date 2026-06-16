@@ -135,6 +135,7 @@ const State = struct {
     quantumRematerizationCount: u32 = QUANTUM_REMATERIZATION_LIMIT,
     resetTime: f32 = 0.0,
     bonusShipScore: usize = 10000,
+    paused: bool = false,
 };
 var state: State = undefined;
 
@@ -382,6 +383,17 @@ fn hitAsteroid(a: *Asteroid, impact: ?Vector2) !void {
 }
 
 fn update() !void {
+    // Pause/unpause handling
+    if (rl.isKeyPressed(.h) or rl.isKeyPressed(.p)) {
+        state.paused = true;
+    }
+    if (state.paused) {
+        if (rl.isKeyPressed(.space)) {
+            state.paused = false;
+        }
+        return;
+    }
+
     if (state.reset) {
         if ((state.now - state.resetTime) > DEATH_IN_SECS) {
             // pause between games. Doesn't work.
@@ -721,6 +733,45 @@ fn qrcColor() rl.Color {
     return cnow;
 }
 
+fn drawHelpBox() void {
+    const lines = [_][:0]const u8{
+        "PAUSED",
+        "",
+        "LEFT/RIGHT  Rotate",
+        "UP           Thrust",
+        "SPACE        Shoot",
+        "H / P        Pause",
+        "",
+        "Press SPACE to resume",
+    };
+
+    const font_size: i32 = 30;
+    const line_spacing: i32 = 10;
+    const padding: i32 = 40;
+    const total_line_height = font_size + line_spacing;
+
+    const panel_width: f32 = 460;
+    const panel_height: f32 = @floatFromInt(lines.len * total_line_height + padding * 2);
+
+    const panel_x = (SIZE.x - panel_width) / 2;
+    const panel_y = (SIZE.y - panel_height) / 2;
+
+    // Translucent Xbox-green panel
+    const panel_color = rl.Color.init(16, 124, 16, 200);
+    const border_color = rl.Color.init(0, 255, 0, 220);
+    rl.drawRectangleRec(rl.Rectangle.init(panel_x, panel_y, panel_width, panel_height), panel_color);
+    rl.drawRectangleLinesEx(rl.Rectangle.init(panel_x, panel_y, panel_width, panel_height), 2, border_color);
+
+    const text_color = rl.Color.white;
+    var y: i32 = @as(i32, @intFromFloat(panel_y)) + padding;
+    for (lines) |line| {
+        const text_width = rl.measureText(line, font_size);
+        const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
+        rl.drawText(line, x, y, font_size, text_color);
+        y += total_line_height;
+    }
+}
+
 fn render() !void {
     // draw remaining lives
     for (0..state.lives) |i| {
@@ -803,6 +854,11 @@ fn render() !void {
     for (state.projectiles.items) |p| {
         const bulletColor: rl.Color = if (p.player) rl.Color.white else rl.Color.green;
         rl.drawCircleV(p.pos, @max(SCALE * 0.05, 1), bulletColor);
+    }
+
+    // Draw pause/help overlay
+    if (state.paused) {
+        drawHelpBox();
     }
 }
 
