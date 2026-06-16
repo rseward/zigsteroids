@@ -11,6 +11,9 @@ const SCALE = 38.0;
 const SIZE = Vector2.init(640 * 2, 480 * 2);
 const QUANTUM_REMATERIZATION_LIMIT = 1200;
 const DEATH_IN_SECS = 10.0;
+const SHIELD_DURATION = 0.25;
+const SHIELD_RECHARGE = 5.0;
+const SHIELD_RADIUS = SCALE * 1.5;
 
 const MyColor = enum(u4) {
     white,
@@ -136,6 +139,9 @@ const State = struct {
     resetTime: f32 = 0.0,
     bonusShipScore: usize = 10000,
     paused: bool = false,
+    shieldActive: bool = false,
+    shieldActivateTime: f32 = 0.0,
+    shieldReadyTime: f32 = 0.0,
 };
 var state: State = undefined;
 
@@ -395,6 +401,19 @@ fn update() !void {
         return;
     }
 
+    // Shield activation
+    if (!state.ship.isDead() and !state.shieldActive and state.now >= state.shieldReadyTime) {
+        if (rl.isKeyPressed(.down)) {
+            state.shieldActive = true;
+            state.shieldActivateTime = state.now;
+        }
+    }
+    // Shield expiry
+    if (state.shieldActive and (state.now - state.shieldActivateTime) > SHIELD_DURATION) {
+        state.shieldActive = false;
+        state.shieldReadyTime = state.now + SHIELD_RECHARGE;
+    }
+
     if (state.reset) {
         if ((state.now - state.resetTime) > DEATH_IN_SECS) {
             // pause between games. Doesn't work.
@@ -458,12 +477,17 @@ fn update() !void {
             state.ship.vel = rlm.vector2Add(state.ship.vel, rlm.vector2Scale(shipDir, -0.25));
         }
 
-        // check for projectile v. ship collision
+        // check for projectile v. ship collision (alien bullets only, blocked by shields)
         for (state.projectiles.items) |*p| {
             if (!p.player and !p.remove and state.quantumRematerizationCount==0) {
             if ( (state.now - p.spawn) > 0.15 and rlm.vector2Distance(state.ship.pos, p.pos) < (SCALE * 0.7)) {
-                p.remove = true;
-                state.ship.deathTime = state.now;
+                if (state.shieldActive and rlm.vector2Distance(state.ship.pos, p.pos) < SHIELD_RADIUS) {
+                    // Shield absorbs alien bullet
+                    p.remove = true;
+                } else {
+                    p.remove = true;
+                    state.ship.deathTime = state.now;
+                }
             }
             }
         }
@@ -487,8 +511,13 @@ fn update() !void {
 
             // check for ship v. asteroid collision
             if (state.quantumRematerizationCount==0 and !state.ship.isDead() and rlm.vector2Distance(a.pos, state.ship.pos) < a.size.size() * a.size.collisionScale()) {
-                state.ship.deathTime = state.now;
-                try hitAsteroid(a, rlm.vector2Normalize(state.ship.vel));
+                if (state.shieldActive and rlm.vector2Distance(a.pos, state.ship.pos) < SHIELD_RADIUS) {
+                    // Shield destroys asteroid (splits normally)
+                    try hitAsteroid(a, rlm.vector2Normalize(state.ship.vel));
+                } else {
+                    state.ship.deathTime = state.now;
+                    try hitAsteroid(a, rlm.vector2Normalize(state.ship.vel));
+                }
             }
 
             // check for alien v. asteroid collision
@@ -568,8 +597,13 @@ fn update() !void {
 
             // check alien v. ship
             if (!a.remove and rlm.vector2Distance(a.pos, state.ship.pos) < a.size.collisionSize()) {
-                a.remove = true;
-                state.ship.deathTime = state.now;
+                if (state.shieldActive and rlm.vector2Distance(a.pos, state.ship.pos) < SHIELD_RADIUS) {
+                    // Shield destroys alien
+                    a.remove = true;
+                } else if (!state.ship.isDead()) {
+                    a.remove = true;
+                    state.ship.deathTime = state.now;
+                }
             }
 
             if (!a.remove) {
@@ -740,6 +774,7 @@ fn drawHelpBox() void {
         "",
         "LEFT/RIGHT  Rotate",
         "UP           Thrust",
+        "DOWN         Shields",
         "SPACE        Shoot",
         "H / P        Pause",
         "",
@@ -855,6 +890,31 @@ fn render() !void {
     for (state.projectiles.items) |p| {
         const bulletColor: rl.Color = if (p.player) rl.Color.white else rl.Color.green;
         rl.drawCircleV(p.pos, @max(SCALE * 0.05, 1), bulletColor);
+    }
+
+    // Draw shield circle when active (pulsating purple)
+    if (state.shieldActive and !state.ship.isDead()) {
+        const elapsed = state.now - state.shieldActivateTime;
+        const pulse = 0.6 + 0.4 * @sin(elapsed * math.tau * 8);
+        const shield_color = rl.Color.init(180, 0, 255, @as(u8, @intFromFloat(pulse * 220)));
+        rl.drawCircleV(state.ship.pos, SHIELD_RADIUS, shield_color);
+        const ring_color = rl.Color.init(220, 100, 255, @as(u8, @intFromFloat(pulse * 255)));
+        rl.drawCircleLinesV(state.ship.pos, SHIELD_RADIUS, ring_color);
+    }
+
+    // Draw shield recharge border (translucent purple outline closing inward)
+    if (!state.ship.isDead() and !state.shieldActive and state.shieldReadyTime > state.now and state.shieldReadyTime > 0) {
+        const elapsed = state.now - (state.shieldReadyTime - SHIELD_RECHARGE);
+        const progress = @min(elapsed / SHIELD_RECHARGE, 1.0);
+        // Border starts thick at edges and closes inward as it recharges
+        const max_margin: f32 = 30;
+        const margin = max_margin * (1.0 - progress);
+        const border_alpha: u8 = @as(u8, @intFromFloat((1.0 - progress) * 150 + 40));
+        const border_color = rl.Color.init(180, 0, 255, border_alpha);
+        rl.drawRectangleRec(rl.Rectangle.init(0, 0, SIZE.x, margin), border_color);
+        rl.drawRectangleRec(rl.Rectangle.init(0, SIZE.y - margin, SIZE.x, margin), border_color);
+        rl.drawRectangleRec(rl.Rectangle.init(0, margin, margin, SIZE.y - margin * 2), border_color);
+        rl.drawRectangleRec(rl.Rectangle.init(SIZE.x - margin, margin, margin, SIZE.y - margin * 2), border_color);
     }
 
     // Draw pause/help overlay
