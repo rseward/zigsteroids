@@ -10,7 +10,6 @@ const THICKNESS = 2.5;
 const SCALE = 38.0;
 const SIZE = Vector2.init(640 * 2, 480 * 2);
 const QUANTUM_REMATERIZATION_LIMIT = 1200;
-const DEATH_IN_SECS = 10.0;
 const SHIELD_DURATION = 0.5;
 const SHIELD_RECHARGE = 25.0;
 const SHIELD_RADIUS = SCALE * 1.5;
@@ -131,17 +130,16 @@ const State = struct {
     lives: usize = 0,
     lastScore: usize = 0,
     score: usize = 0,
-    reset: bool = false,
     lastBloop: usize = 0,
     bloop: usize = 0,
     frame: usize = 0,
     quantumRematerizationCount: u32 = QUANTUM_REMATERIZATION_LIMIT,
-    resetTime: f32 = 0.0,
     bonusShipScore: usize = 10000,
     paused: bool = false,
     shieldActive: bool = false,
     shieldActivateTime: f32 = 0.0,
     shieldReadyTime: f32 = 0.0,
+    gameOver: bool = false,
 };
 var state: State = undefined;
 
@@ -389,16 +387,28 @@ fn hitAsteroid(a: *Asteroid, impact: ?Vector2) !void {
 }
 
 fn update() !void {
-    // Pause/unpause handling
-    if (!state.paused) {
+    // Pause/unpause handling (disabled during game over screen)
+    if (!state.paused and !state.gameOver) {
         if (rl.isKeyPressed(.h) or rl.isKeyPressed(.p)) {
             state.paused = true;
         }
-    } else {
+    } else if (state.paused) {
         if (rl.isKeyPressed(.space) or rl.isKeyPressed(.p) or rl.isKeyPressed(.h)) {
             state.paused = false;
         }
         return;
+    }
+
+    // Game over screen: wait for player to press "1" to start a new game.
+    // While in game over, ship controls are disabled but asteroids/particles
+    // continue to move in the background.
+    if (state.gameOver) {
+        if (rl.isKeyPressed(.one)) {
+            state.gameOver = false;
+            try resetGame();
+        }
+        // Skip ship control and spawning logic but continue updating
+        // asteroids, particles, projectiles, and aliens below.
     }
 
     // Shield activation
@@ -414,15 +424,7 @@ fn update() !void {
         state.shieldReadyTime = state.now + SHIELD_RECHARGE;
     }
 
-    if (state.reset) {
-        if ((state.now - state.resetTime) > DEATH_IN_SECS) {
-            // pause between games. Doesn't work.
-            state.reset = false;
-            try resetGame();
-        }
-    }
-
-    if (!state.ship.isDead()) {
+    if (!state.ship.isDead() and !state.gameOver) {
         if (state.quantumRematerizationCount>0) {
             // After a respawn you have a small window of immunity
             state.quantumRematerizationCount = state.quantumRematerizationCount - 1;
@@ -654,9 +656,8 @@ fn update() !void {
 
     if (state.ship.isDead() and (state.now - state.ship.deathTime) > 3.0) {
         if (state.lives == 0) {
-            if ((state.now - state.ship.deathTime) > DEATH_IN_SECS) {
-                try resetStage();
-            }
+            // Last life lost: enter game over screen instead of auto-resetting.
+            state.gameOver = true;
         } else {
             try resetStage();
         }
@@ -678,7 +679,7 @@ fn update() !void {
     }
     state.lastBloop = state.bloop;
 
-    if (state.asteroids.items.len == 0 and state.aliens.items.len == 0) {
+    if (!state.gameOver and state.asteroids.items.len == 0 and state.aliens.items.len == 0) {
         try resetAsteroids();
     }
 
@@ -777,6 +778,7 @@ fn drawHelpBox() void {
         "DOWN         Shields",
         "SPACE        Shoot",
         "H / P        Pause",
+        "1            New Game",
         "",
         "PAUSED",
     };
@@ -805,6 +807,79 @@ fn drawHelpBox() void {
         const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
         rl.drawText(line, x, y, font_size, text_color);
         y += total_line_height;
+    }
+}
+
+fn drawGameOverBox() void {
+    // Translucent dark overlay so the moving asteroids remain visible behind it.
+    rl.drawRectangleRec(
+        rl.Rectangle.init(0, 0, SIZE.x, SIZE.y),
+        rl.Color.init(0, 0, 0, 140),
+    );
+
+    const title = "..  game over  ..";
+    const score_label = "Final Score";
+    var score_buf: [32:0]u8 = undefined;
+    const score_str = std.fmt.bufPrintZ(&score_buf, "{d}", .{state.score}) catch return;
+
+    const restart_hint = "Press 1 to start a new game";
+
+    const font_size: i32 = 40;
+    const small_font_size: i32 = 28;
+    const line_spacing: i32 = 12;
+    const padding: i32 = 50;
+    const total_line_height = font_size + line_spacing;
+    const small_line_height = small_font_size + line_spacing;
+
+    // Calculate panel height: title + gap + score label + score value + gap + restart hint
+    const panel_width: f32 = 520;
+    const panel_height: f32 = @floatFromInt(
+        total_line_height + 20 + small_line_height + small_line_height + 20 + small_line_height + padding * 2,
+    );
+
+    const panel_x = (SIZE.x - panel_width) / 2;
+    const panel_y = (SIZE.y - panel_height) / 2;
+
+    // Translucent dark-red panel
+    const panel_color = rl.Color.init(80, 16, 16, 200);
+    const border_color = rl.Color.init(220, 80, 80, 220);
+    rl.drawRectangleRec(rl.Rectangle.init(panel_x, panel_y, panel_width, panel_height), panel_color);
+    rl.drawRectangleLinesEx(rl.Rectangle.init(panel_x, panel_y, panel_width, panel_height), 2, border_color);
+
+    var y: i32 = @as(i32, @intFromFloat(panel_y)) + padding;
+
+    // Title
+    {
+        const text_width = rl.measureText(title, font_size);
+        const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
+        rl.drawText(title, x, y, font_size, rl.Color.red);
+        y += total_line_height + 20;
+    }
+
+    // Final score label
+    {
+        const text_width = rl.measureText(score_label, small_font_size);
+        const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
+        rl.drawText(score_label, x, y, small_font_size, rl.Color.gray);
+        y += small_line_height;
+    }
+
+    // Score value
+    {
+        const text_width = rl.measureText(score_str, small_font_size);
+        const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
+        rl.drawText(score_str, x, y, small_font_size, rl.Color.white);
+        y += small_line_height + 20;
+    }
+
+    // Restart hint (pulsating)
+    {
+        const pulse: f32 = 0.5 + 0.5 * @sin(state.now * math.tau * 0.8);
+        const hint_alpha: u8 = @as(u8, @intFromFloat(120 + pulse * 135));
+        const hint_color = rl.Color.init(255, 255, 255, hint_alpha);
+        const text_width = rl.measureText(restart_hint, small_font_size);
+        const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
+        rl.drawText(restart_hint, x, y, small_font_size, hint_color);
     }
 }
 
@@ -921,6 +996,11 @@ fn render() !void {
     if (state.paused) {
         drawHelpBox();
     }
+
+    // Draw game over overlay
+    if (state.gameOver) {
+        drawGameOverBox();
+    }
 }
 
 fn resetAsteroids() !void {
@@ -949,6 +1029,13 @@ fn resetAsteroids() !void {
 fn resetGame() !void {
     state.lives = 3;
     state.score = 0;
+    state.bonusShipScore = 10000;
+
+    // Clear death state so resetStage() doesn't decrement lives.
+    state.ship.deathTime = 0.0;
+    state.quantumRematerizationCount = QUANTUM_REMATERIZATION_LIMIT;
+    state.shieldActive = false;
+    state.shieldReadyTime = 0.0;
 
     try resetStage();
     try resetAsteroids();
@@ -957,9 +1044,9 @@ fn resetGame() !void {
 // reset after losing a life
 fn resetStage() !void {
     if (state.ship.isDead()) {
-        if (state.lives == 0 ) {
-            state.resetTime = state.now;
-            state.reset = true;
+        if (state.lives == 0) {
+            // Last life lost — the game over screen is triggered from update().
+            // Nothing to do here; the player will press "1" to start a new game.
         } else {
             state.quantumRematerizationCount = QUANTUM_REMATERIZATION_LIMIT;
             state.lives -= 1;
