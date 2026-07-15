@@ -10,7 +10,7 @@ const THICKNESS = 2.5;
 const SCALE = 38.0;
 const SIZE = Vector2.init(640 * 2, 480 * 2);
 const QUANTUM_REMATERIZATION_LIMIT = 1200;
-const SHIELD_DURATION = 0.5;
+const SHIELD_DURATION = 1.0;
 const SHIELD_RECHARGE = 25.0;
 const SHIELD_RADIUS = SCALE * 1.5;
 
@@ -822,7 +822,12 @@ fn drawGameOverBox() void {
     var score_buf: [32:0]u8 = undefined;
     const score_str = std.fmt.bufPrintZ(&score_buf, "{d}", .{state.score}) catch return;
 
+    const coin_text = "Coin detected in pocket";
     const restart_hint = "Press 1 to start a new game";
+    // "Press help" with the 'h' rendered in yellow
+    const help_prefix = "Press ";
+    const help_highlight = "h";
+    const help_suffix = "elp";
 
     const font_size: i32 = 40;
     const small_font_size: i32 = 28;
@@ -831,10 +836,10 @@ fn drawGameOverBox() void {
     const total_line_height = font_size + line_spacing;
     const small_line_height = small_font_size + line_spacing;
 
-    // Calculate panel height: title + gap + score label + score value + gap + restart hint
+    // Panel height: title + gap + score label + score value + gap + coin text + restart hint + help hint + padding*2
     const panel_width: f32 = 520;
     const panel_height: f32 = @floatFromInt(
-        total_line_height + 20 + small_line_height + small_line_height + 20 + small_line_height + padding * 2,
+        total_line_height + 20 + small_line_height + small_line_height + 20 + small_line_height + small_line_height + small_line_height + padding * 2,
     );
 
     const panel_x = (SIZE.x - panel_width) / 2;
@@ -872,7 +877,18 @@ fn drawGameOverBox() void {
         y += small_line_height + 20;
     }
 
-    // Restart hint (pulsating)
+    // "Coin detected in pocket" — slowly fades in and out (slow cycle)
+    {
+        const coin_pulse: f32 = 0.5 + 0.5 * @sin(state.now * math.tau * 0.3);
+        const coin_alpha: u8 = @as(u8, @intFromFloat(30 + coin_pulse * 225));
+        const coin_color = rl.Color.init(255, 220, 100, coin_alpha);
+        const text_width = rl.measureText(coin_text, small_font_size);
+        const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
+        rl.drawText(coin_text, x, y, small_font_size, coin_color);
+        y += small_line_height;
+    }
+
+    // "Press 1 to start a new game" — pulsating
     {
         const pulse: f32 = 0.5 + 0.5 * @sin(state.now * math.tau * 0.8);
         const hint_alpha: u8 = @as(u8, @intFromFloat(120 + pulse * 135));
@@ -880,6 +896,30 @@ fn drawGameOverBox() void {
         const text_width = rl.measureText(restart_hint, small_font_size);
         const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
         rl.drawText(restart_hint, x, y, small_font_size, hint_color);
+        y += small_line_height;
+    }
+
+    // "Press help" (with yellow 'h') — fades in sync with the restart hint above
+    {
+        const pulse: f32 = 0.5 + 0.5 * @sin(state.now * math.tau * 0.8);
+        const hint_alpha: u8 = @as(u8, @intFromFloat(120 + pulse * 135));
+        const normal_color = rl.Color.init(255, 255, 255, hint_alpha);
+        const yellow_color = rl.Color.init(255, 255, 0, hint_alpha);
+
+        const full_text = "Press help";
+        const full_width = rl.measureText(full_text, small_font_size);
+        const start_x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(full_width))) / 2));
+
+        // Draw "Press " in white
+        rl.drawText(help_prefix, start_x, y, small_font_size, normal_color);
+        const prefix_width = rl.measureText(help_prefix, small_font_size);
+
+        // Draw "h" in yellow
+        rl.drawText(help_highlight, start_x + prefix_width, y, small_font_size, yellow_color);
+        const highlight_width = rl.measureText(help_highlight, small_font_size);
+
+        // Draw "elp" in white
+        rl.drawText(help_suffix, start_x + prefix_width + highlight_width, y, small_font_size, normal_color);
     }
 }
 

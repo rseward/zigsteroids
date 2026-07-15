@@ -1,6 +1,6 @@
 .{
     .name = .zigsteroids,
-    .version = "0.3.1",
+    .version = "0.3.4",
     .fingerprint = 0x6ff7ae9e8c234ba0,
     .dependencies = .{
         .raylib_zig = .{

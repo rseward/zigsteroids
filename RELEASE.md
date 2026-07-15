@@ -1,3 +1,10 @@
+# 0.3.4
+
+- Alien saucers now fire green bullets at the player's ship
+- Added a pause/help overlay — press H or P to pause and view controls
+- Added shields — press DOWN to activate a temporary shield that destroys asteroids and blocks alien fire (protection duration doubled)
+- Added a game over screen — when all lives are lost, a translucent overlay shows your final score with asteroids still drifting in the background; press 1 to start a new game
+
 # 0.3.1
 
 - Ported to Zig 0.15.2 with official raylib-zig dependency (builds on the `zig-0.15` branch)
