@@ -10,7 +10,7 @@ const THICKNESS = 2.5;
 const SCALE = 38.0;
 const SIZE = Vector2.init(640 * 2, 480 * 2);
 const QUANTUM_REMATERIZATION_LIMIT = 1200;
-const SHIELD_DURATION = 1.0;
+const SHIELD_DURATION = 2.0;
 const SHIELD_RECHARGE = 25.0;
 const SHIELD_RADIUS = SCALE * 1.5;
 
@@ -1082,6 +1082,20 @@ fn render() !void {
         rl.drawCircleV(state.ship.pos, SHIELD_RADIUS, shield_color);
         const ring_color = rl.Color.init(220, 100, 255, @as(u8, @intFromFloat(pulse * 255)));
         rl.drawCircleLinesV(state.ship.pos, SHIELD_RADIUS, ring_color);
+    }
+
+    // Draw quantum phase-in border (strongest purple at start, fading to black)
+    if (!state.ship.isDead() and state.quantumRematerizationCount > 0) {
+        const qrcPct: f32 = 1.0 - @as(f32, @floatFromInt(state.quantumRematerizationCount)) / @as(f32, @floatFromInt(QUANTUM_REMATERIZATION_LIMIT));
+        const fade: f32 = 1.0 - qrcPct;
+        const max_margin: f32 = 30;
+        const margin = max_margin * fade;
+        const border_alpha: u8 = @as(u8, @intFromFloat(fade * 190));
+        const border_color = rl.Color.init(180, 0, 255, border_alpha);
+        rl.drawRectangleRec(rl.Rectangle.init(0, 0, SIZE.x, margin), border_color);
+        rl.drawRectangleRec(rl.Rectangle.init(0, SIZE.y - margin, SIZE.x, margin), border_color);
+        rl.drawRectangleRec(rl.Rectangle.init(0, margin, margin, SIZE.y - margin * 2), border_color);
+        rl.drawRectangleRec(rl.Rectangle.init(SIZE.x - margin, margin, margin, SIZE.y - margin * 2), border_color);
     }
 
     // Draw shield recharge border (translucent purple outline closing inward)
