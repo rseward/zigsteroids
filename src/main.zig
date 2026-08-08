@@ -784,6 +784,28 @@ fn qrcColor() rl.Color {
     return cnow;
 }
 
+fn alienRatioStr(buf: *[128:0]u8, aliensKilled: usize, alienKills: usize) [:0]const u8 {
+    if (aliensKilled == 0 and alienKills == 0) {
+        return std.fmt.bufPrintZ(buf, "No alien encounters", .{}) catch unreachable;
+    }
+
+    if (aliensKilled > alienKills) {
+        if (alienKills == 0) {
+            return std.fmt.bufPrintZ(buf, "{d} to 0 ratio alien kill ratio", .{aliensKilled}) catch unreachable;
+        }
+        const ratio: f32 = @as(f32, @floatFromInt(aliensKilled)) / @as(f32, @floatFromInt(alienKills));
+        return std.fmt.bufPrintZ(buf, "{d:.1} to 1 ratio alien kill ratio", .{ratio}) catch unreachable;
+    } else if (alienKills > aliensKilled) {
+        if (aliensKilled == 0) {
+            return std.fmt.bufPrintZ(buf, "0 to {d} rate player vs. alien death ratio", .{alienKills}) catch unreachable;
+        }
+        const ratio: f32 = @as(f32, @floatFromInt(alienKills)) / @as(f32, @floatFromInt(aliensKilled));
+        return std.fmt.bufPrintZ(buf, "1 to {d:.1} rate player vs. alien death ratio", .{ratio}) catch unreachable;
+    } else {
+        return std.fmt.bufPrintZ(buf, "1 to 1 ratio", .{}) catch unreachable;
+    }
+}
+
 fn drawHelpBox() void {
     const lines = [_][:0]const u8{
         "Large Space Rocks",
@@ -839,8 +861,8 @@ fn drawHelpBox() void {
         rl.drawText(acc_str, acc_x, y, font_size, text_color);
         y += total_line_height;
 
-        var kill_buf: [64:0]u8 = undefined;
-        const kill_str = std.fmt.bufPrintZ(&kill_buf, "Aliens: {d}  Deaths: {d}", .{state.aliensKilled, state.alienKills}) catch unreachable;
+        var kill_buf: [128:0]u8 = undefined;
+        const kill_str = alienRatioStr(&kill_buf, state.aliensKilled, state.alienKills);
         const kill_width = rl.measureText(kill_str, font_size);
         const kill_x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(kill_width))) / 2));
         rl.drawText(kill_str, kill_x, y, font_size, text_color);
@@ -925,8 +947,8 @@ fn drawGameOverBox() void {
         rl.drawText(acc_str, acc_x, y, small_font_size, rl.Color.gray);
         y += small_line_height;
 
-        var kill_buf: [64:0]u8 = undefined;
-        const kill_str = std.fmt.bufPrintZ(&kill_buf, "Aliens: {d}  Deaths: {d}", .{state.aliensKilled, state.alienKills}) catch unreachable;
+        var kill_buf: [128:0]u8 = undefined;
+        const kill_str = alienRatioStr(&kill_buf, state.aliensKilled, state.alienKills);
         const kill_width = rl.measureText(kill_str, small_font_size);
         const kill_x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(kill_width))) / 2));
         rl.drawText(kill_str, kill_x, y, small_font_size, rl.Color.gray);
