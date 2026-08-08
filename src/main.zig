@@ -140,6 +140,11 @@ const State = struct {
     shieldActivateTime: f32 = 0.0,
     shieldReadyTime: f32 = 0.0,
     gameOver: bool = false,
+    shotsFired: usize = 0,
+    shotsHit: usize = 0,
+    aliensKilled: usize = 0,
+    alienKills: usize = 0,
+    field: usize = 1,
 };
 var state: State = undefined;
 
@@ -475,6 +480,7 @@ fn update() !void {
                 .player = true,
             });
             rl.playSound(sound.shoot);
+            state.shotsFired += 1;
 
             state.ship.vel = rlm.vector2Add(state.ship.vel, rlm.vector2Scale(shipDir, -0.25));
         }
@@ -489,6 +495,7 @@ fn update() !void {
                 } else {
                     p.remove = true;
                     state.ship.deathTime = state.now;
+                    state.alienKills += 1;
                 }
             }
             }
@@ -534,6 +541,9 @@ fn update() !void {
             for (state.projectiles.items) |*p| {
                 if (!p.remove and rlm.vector2Distance(a.pos, p.pos) < a.size.size() * a.size.collisionScale()) {
                     p.remove = true;
+                    if (p.player) {
+                        state.shotsHit += 1;
+                    }
                     try hitAsteroid(a, rlm.vector2Normalize(p.vel));
                 }
             }
@@ -594,6 +604,10 @@ fn update() !void {
                 if (!p.remove and (state.now - p.spawn) > 0.15 and rlm.vector2Distance(a.pos, p.pos) < a.size.collisionSize()) {
                     p.remove = true;
                     a.remove = true;
+                    if (p.player) {
+                        state.shotsHit += 1;
+                        state.aliensKilled += 1;
+                    }
                 }
             }
 
@@ -605,6 +619,7 @@ fn update() !void {
                 } else if (!state.ship.isDead()) {
                     a.remove = true;
                     state.ship.deathTime = state.now;
+                    state.alienKills += 1;
                 }
             }
 
@@ -788,8 +803,10 @@ fn drawHelpBox() void {
     const padding: i32 = 40;
     const total_line_height = font_size + line_spacing;
 
-    const panel_width: f32 = 460;
-    const panel_height: f32 = @floatFromInt(lines.len * total_line_height + padding * 2);
+    // Extra space for stats section (blank line + accuracy + kill/death)
+    const stats_lines: i32 = 3;
+    const panel_width: f32 = 520;
+    const panel_height: f32 = @floatFromInt(@as(i32, @intCast(lines.len)) * total_line_height + stats_lines * total_line_height + padding * 2);
 
     const panel_x = (SIZE.x - panel_width) / 2;
     const panel_y = (SIZE.y - panel_height) / 2;
@@ -807,6 +824,26 @@ fn drawHelpBox() void {
         const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
         rl.drawText(line, x, y, font_size, text_color);
         y += total_line_height;
+    }
+
+    // Stats section
+    {
+        y += total_line_height; // blank line
+
+        const accuracy: usize = if (state.shotsFired > 0) (state.shotsHit * 100) / state.shotsFired else 0;
+
+        var acc_buf: [64:0]u8 = undefined;
+        const acc_str = std.fmt.bufPrintZ(&acc_buf, "Accuracy: {d}%", .{accuracy}) catch unreachable;
+        const acc_width = rl.measureText(acc_str, font_size);
+        const acc_x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(acc_width))) / 2));
+        rl.drawText(acc_str, acc_x, y, font_size, text_color);
+        y += total_line_height;
+
+        var kill_buf: [64:0]u8 = undefined;
+        const kill_str = std.fmt.bufPrintZ(&kill_buf, "Aliens: {d}  Deaths: {d}", .{state.aliensKilled, state.alienKills}) catch unreachable;
+        const kill_width = rl.measureText(kill_str, font_size);
+        const kill_x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(kill_width))) / 2));
+        rl.drawText(kill_str, kill_x, y, font_size, text_color);
     }
 }
 
@@ -836,10 +873,10 @@ fn drawGameOverBox() void {
     const total_line_height = font_size + line_spacing;
     const small_line_height = small_font_size + line_spacing;
 
-    // Panel height: title + gap + score label + score value + gap + coin text + restart hint + help hint + padding*2
+    // Panel height: title + gap + score label + score value + gap + stats + gap + coin text + restart hint + help hint + padding*2
     const panel_width: f32 = 520;
     const panel_height: f32 = @floatFromInt(
-        total_line_height + 20 + small_line_height + small_line_height + 20 + small_line_height + small_line_height + small_line_height + padding * 2,
+        total_line_height + 20 + small_line_height + small_line_height + 20 + small_line_height + small_line_height + 10 + small_line_height + small_line_height + small_line_height + small_line_height + padding * 2,
     );
 
     const panel_x = (SIZE.x - panel_width) / 2;
@@ -875,6 +912,25 @@ fn drawGameOverBox() void {
         const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
         rl.drawText(score_str, x, y, small_font_size, rl.Color.white);
         y += small_line_height + 20;
+    }
+
+    // Stats: accuracy and alien kill/death ratio
+    {
+        const accuracy: usize = if (state.shotsFired > 0) (state.shotsHit * 100) / state.shotsFired else 0;
+
+        var acc_buf: [64:0]u8 = undefined;
+        const acc_str = std.fmt.bufPrintZ(&acc_buf, "Accuracy: {d}%", .{accuracy}) catch unreachable;
+        const acc_width = rl.measureText(acc_str, small_font_size);
+        const acc_x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(acc_width))) / 2));
+        rl.drawText(acc_str, acc_x, y, small_font_size, rl.Color.gray);
+        y += small_line_height;
+
+        var kill_buf: [64:0]u8 = undefined;
+        const kill_str = std.fmt.bufPrintZ(&kill_buf, "Aliens: {d}  Deaths: {d}", .{state.aliensKilled, state.alienKills}) catch unreachable;
+        const kill_width = rl.measureText(kill_str, small_font_size);
+        const kill_x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(kill_width))) / 2));
+        rl.drawText(kill_str, kill_x, y, small_font_size, rl.Color.gray);
+        y += small_line_height + 10;
     }
 
     // "Coin detected in pocket" — slowly fades in and out (slow cycle)
@@ -934,6 +990,17 @@ fn render() !void {
             true,
             getMyColor(MyColor.bright_white)
         );
+    }
+
+    // draw field number centered between lives and score
+    {
+        var field_buf: [32:0]u8 = undefined;
+        const field_str = std.fmt.bufPrintZ(&field_buf, "Field {d}", .{state.field}) catch unreachable;
+        const field_font: i32 = 20;
+        const text_width = rl.measureText(field_str, field_font);
+        const fx: i32 = @as(i32, @intFromFloat((SIZE.x - @as(f32, @floatFromInt(text_width))) / 2));
+        const fy: i32 = @as(i32, @intFromFloat(SCALE * 0.3));
+        rl.drawText(field_str, fx, fy, field_font, rl.Color.white);
     }
 
     // draw score
@@ -1064,12 +1131,20 @@ fn resetAsteroids() !void {
     }
 
     state.stageStart = state.now;
+    state.field += 1;
 }
 
 fn resetGame() !void {
     state.lives = 3;
     state.score = 0;
     state.bonusShipScore = 10000;
+
+    // Reset stats
+    state.shotsFired = 0;
+    state.shotsHit = 0;
+    state.aliensKilled = 0;
+    state.alienKills = 0;
+    state.field = 0;
 
     // Clear death state so resetStage() doesn't decrement lives.
     state.ship.deathTime = 0.0;

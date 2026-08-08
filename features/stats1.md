@@ -1,0 +1,2 @@
+Add statitics to this game. Track the player's shot accuracy. E.g. the percentage of shots fired that destroy a target. Also track the tally of aliens killed vs. the number of times a player has been killed by an alien or it's bullets. Display the game stats on the pause and game over         
+overlays. Also track the astroroid field the player is in with the text "Field X" centered between the player ship count and the score.
