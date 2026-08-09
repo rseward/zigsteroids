@@ -11,3 +11,8 @@ run:
 
 deps:
 	sudo dnf install glfw-devel -y
+
+install-udev:
+	sudo cp udev/99-xbox-controller.rules /etc/udev/rules.d/
+	sudo udevadm control --reload-rules
+	sudo udevadm trigger

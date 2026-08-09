@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Xbox Controller Integration Plan — Zigsteroids</title>
+<style>
+  /* ── Design tokens ─────────────────────────────────────────────── */
+  :root {
+    --bg:        #0d1117;
+    --bg-card:   #161b22;
+    --bg-code:   #1c2128;
+    --bg-hover:  #1c232c;
+    --border:    #30363d;
+    --border-bright: #58a6ff;
+    --text:      #c9d1d9;
+    --text-dim:   #8b949e;
+    --text-bright:#f0f6fc;
+    --accent:    #58a6ff;
+    --accent-2:  #79c0ff;
+    --green:     #7ee787;
+    --green-bg:  rgba(63, 185, 80, 0.10);
+    --red:       #ff7b72;
+    --amber:     #d29922;
+    --amber-bg:  rgba(187, 128, 9, 0.10);
+    --purple:    #bc8cff;
+    --pink:      #f778ba;
+    --radius:    10px;
+    --mono: "SFMono-Regular", "Consolas", "DejaVu Sans Mono", "Liberation Mono", monospace;
+    --sans: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg:        #ffffff;
+      --bg-card:   #f6f8fa;
+      --bg-code:   #eff2f5;
+      --bg-hover:  #e8eef2;
+      --border:    #d0d7de;
+      --border-bright: #0969da;
+      --text:      #24292f;
+      --text-dim:   #57606a;
+      --text-bright:#1f2328;
+      --accent:    #0969da;
+      --accent-2:  #0550ae;
+      --green:     #1a7f37;
+      --green-bg:  rgba(26, 127, 55, 0.08);
+      --red:       #cf222e;
+      --amber:     #9a6700;
+      --amber-bg:  rgba(154, 103, 0, 0.08);
+      --purple:    #8250df;
+      --pink:      #bf3989;
+    }
+  }
+
+  /* ── Base ──────────────────────────────────────────────────────── */
+  *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.65;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Typography ────────────────────────────────────────────────── */
+  h1,h2,h3,h4 { color: var(--text-bright); font-weight: 650; line-height: 1.3; }
+  h1 { font-size: 2.1em; margin: 48px 0 8px; letter-spacing: -0.02em; }
+  h2 {
+    font-size: 1.6em;
+    margin: 48px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  h3 { font-size: 1.25em; margin: 32px 0 12px; }
+  h4 { font-size: 1.05em; margin: 24px 0 8px; color: var(--accent-2); }
+  p { margin: 10px 0; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  ul, ol { margin: 10px 0 10px 28px; }
+  li { margin: 4px 0; }
+  strong { color: var(--text-bright); }
+  code { font-family: var(--mono); font-size: 0.88em; }
+
+  /* ── Header ────────────────────────────────────────────────────── */
+  .header-banner {
+    background: linear-gradient(135deg, rgba(88,166,255,.08), rgba(126,231,135,.06));
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px 36px;
+    margin: 24px 0 8px;
+  }
+  .header-banner h1 { margin-top: 0; }
+  .header-banner .subtitle {
+    color: var(--text-dim);
+    font-size: 1.05em;
+    margin-top: 4px;
+  }
+  .badges { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.8em;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .badge.zig    { color: var(--amber);  border-color: var(--amber);  background: var(--amber-bg); }
+  .badge.raylib { color: var(--green);  border-color: var(--green); background: var(--green-bg); }
+  .badge.linux  { color: var(--accent); border-color: var(--accent); background: rgba(88,166,255,.08); }
+
+  /* ── TOC ───────────────────────────────────────────────────────── */
+  .toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 28px;
+    margin: 24px 0;
+  }
+  .toc-title {
+    font-size: 0.8em; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.06em; color: var(--text-dim); margin-bottom: 10px;
+  }
+  .toc ol { columns: 2; column-gap: 32px; margin-left: 0; list-style: none; }
+  .toc ol li { margin: 5px 0; break-inside: avoid; }
+  .toc a { color: var(--text); font-size: 0.95em; }
+  .toc a:hover { color: var(--accent); text-decoration: none; }
+  .toc .toc-num {
+    display: inline-block; width: 28px; color: var(--text-dim);
+    font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.85em;
+  }
+
+  /* ── Callouts ──────────────────────────────────────────────────── */
+  .callout {
+    border-left: 4px solid;
+    border-radius: 0 8px 8px 0;
+    padding: 14px 20px;
+    margin: 16px 0;
+    background: var(--bg-card);
+  }
+  .callout-title {
+    font-weight: 700; font-size: 0.85em; text-transform: uppercase;
+    letter-spacing: 0.04em; margin-bottom: 6px;
+  }
+  .callout.info     { border-color: var(--accent); }
+  .callout.info .callout-title { color: var(--accent); }
+  .callout.warning  { border-color: var(--amber); background: var(--amber-bg); }
+  .callout.warning .callout-title { color: var(--amber); }
+  .callout.success  { border-color: var(--green); background: var(--green-bg); }
+  .callout.success .callout-title { color: var(--green); }
+  .callout.danger   { border-color: var(--red); }
+  .callout.danger .callout-title { color: var(--red); }
+
+  /* ── Code blocks ───────────────────────────────────────────────── */
+  pre {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 22px;
+    overflow-x: auto;
+    margin: 14px 0;
+    font-family: var(--mono);
+    font-size: 0.86em;
+    line-height: 1.55;
+  }
+  pre code { font-size: inherit; }
+  :not(pre) > code {
+    background: var(--bg-code);
+    border: 1px solid var(--border);
+    padding: 2px 6px;
+    border-radius: 5px;
+    color: var(--accent-2);
+  }
+  /* Zig syntax highlighting (manual spans) */
+  .kw  { color: var(--purple); }     /* keywords */
+  .fn  { color: var(--accent-2); }   /* functions */
+  .ty  { color: var(--green); }     /* types */
+  .str { color: var(--amber); }     /* strings */
+  .num { color: var(--pink); }      /* numbers */
+  .com { color: var(--text-dim); font-style: italic; } /* comments */
+  .var { color: var(--text-bright); } /* variable names */
+  .punc { color: var(--text-dim); }   /* punctuation */
+
+  /* ── Tables ────────────────────────────────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0;
+    font-size: 0.92em;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  th {
+    background: var(--bg-card);
+    text-align: left;
+    padding: 10px 16px;
+    font-weight: 650;
+    color: var(--text-bright);
+    border-bottom: 2px solid var(--border);
+    white-space: nowrap;
+  }
+  td {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg-hover); }
+  td code { font-size: 0.85em; }
+
+  /* ── Details/Summary ──────────────────────────────────────────── */
+  details {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0;
+    margin: 14px 0;
+    background: var(--bg-card);
+    overflow: hidden;
+  }
+  details > summary {
+    cursor: pointer;
+    padding: 14px 20px;
+    font-weight: 600;
+    color: var(--text-bright);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    user-select: none;
+    transition: background .15s;
+  }
+  details > summary:hover { background: var(--bg-hover); }
+  details > summary::before {
+    content: "▶";
+    font-size: 0.7em;
+    color: var(--text-dim);
+    transition: transform .2s;
+    flex-shrink: 0;
+  }
+  details[open] > summary::before { transform: rotate(90deg); }
+  details > summary::-webkit-details-marker { display: none; }
+  details > div { padding: 4px 20px 18px; }
+
+  /* ── Architecture diagram ──────────────────────────────────────── */
+  .arch-diagram {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    margin: 28px 0;
+    font-family: var(--mono);
+    font-size: 0.85em;
+  }
+  .arch-box {
+    border: 2px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 28px;
+    text-align: center;
+    background: var(--bg-card);
+    min-width: 240px;
+    color: var(--text-bright);
+    font-weight: 600;
+  }
+  .arch-box.game {
+    border-color: var(--green);
+    background: var(--green-bg);
+  }
+  .arch-box.input {
+    border-color: var(--accent);
+    background: rgba(88,166,255,.06);
+  }
+  .arch-box .sub {
+    font-size: 0.82em; font-weight: 400; color: var(--text-dim); margin-top: 4px;
+  }
+  .arch-arrow {
+    color: var(--text-dim);
+    font-size: 1.4em;
+    line-height: 1;
+    padding: 6px 0;
+  }
+  .arch-row { display: flex; gap: 32px; align-items: flex-start; }
+  .arch-col { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+  /* ── Checklist ─────────────────────────────────────────────────── */
+  .checklist { list-style: none; margin-left: 0; }
+  .checklist li {
+    padding: 6px 0 6px 28px;
+    position: relative;
+  }
+  .checklist li::before {
+    content: "";
+    position: absolute;
+    left: 0; top: 11px;
+    width: 18px; height: 18px;
+    border: 2px solid var(--border);
+    border-radius: 4px;
+  }
+
+  /* ── Step numbers ─────────────────────────────────────────────── */
+  .step {
+    counter-increment: step-counter;
+  }
+  .step > h3::before {
+    content: counter(step-counter);
+    display: inline-flex;
+    align-items: center; justify-content: center;
+    width: 32px; height: 32px;
+    background: var(--accent);
+    color: var(--bg);
+    border-radius: 50%;
+    font-size: 0.65em;
+    font-weight: 700;
+    margin-right: 10px;
+    font-family: var(--mono);
+    vertical-align: middle;
+  }
+  .steps { counter-reset: step-counter; }
+
+  /* ── Inline tag ────────────────────────────────────────────────── */
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78em;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .tag.new   { color: var(--green);  border-color: var(--green); }
+  .tag.copy  { color: var(--accent); border-color: var(--accent); }
+  .tag.modify{ color: var(--amber); border-color: var(--amber); }
+  .tag.linux { color: var(--purple); border-color: var(--purple); }
+
+  /* ── Keyboard key styling ─────────────────────────────────────── */
+  kbd {
+    display: inline-block;
+    padding: 2px 8px;
+    font-family: var(--mono);
+    font-size: 0.82em;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+    color: var(--text-bright);
+  }
+
+  /* ── Misc ──────────────────────────────────────────────────────── */
+  .pill-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+  .footer {
+    margin-top: 64px; padding-top: 24px;
+    border-top: 1px solid var(--border);
+    text-align: center; color: var(--text-dim); font-size: 0.85em;
+  }
+  .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+
+  @media (max-width: 700px) {
+    .toc ol { columns: 1; }
+    .arch-row { flex-direction: column; gap: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- HEADER                                                                -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="header-banner">
+  <h1>Xbox Controller Integration Plan</h1>
+  <p class="subtitle">Integrating <code>zig_xboxinput</code> dual-path gamepad support into <strong>zigsteroids</strong> (aka Large Space Rocks)</p>
+  <div class="badges">
+    <span class="badge zig">Zig 0.15.2</span>
+    <span class="badge raylib">raylib-zig @ a4d18b2</span>
+    <span class="badge linux">Linux joydev + raylib dual-path</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- TABLE OF CONTENTS                                                     -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<nav class="toc">
+  <div class="toc-title">Contents</div>
+  <ol>
+    <li><span class="toc-num">1</span><a href="#overview">Overview &amp; Goal</a></li>
+    <li><a href="#current-state">Current State of Both Projects</a></li>
+    <li><a href="#architecture">Architecture: Input Abstraction Layer</a></li>
+    <li><a href="#control-mapping">Control Mapping</a></li>
+    <li><a href="#analog-rotation">Analog Rotation Support</a></li>
+    <li><a href="#edge-detection">Edge-Triggered Button Detection</a></li>
+    <li><a href="#file-plan">File-by-File Implementation Plan</a></li>
+    <li><a href="#checklist">Step-by-Step Checklist</a></li>
+    <li><a href="#anti-patterns">What NOT to Do</a></li>
+    <li><a href="#risks">Risk Assessment</a></li>
+    <li><a href="#summary">Summary</a></li>
+  </ol>
+</nav>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 1. OVERVIEW                                                           -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="overview">
+<h2>1. Overview &amp; Goal</h2>
+
+<p>
+  The goal is to add Xbox controller support to <strong>zigsteroids</strong> by extracting
+  the proven dual-path gamepad input logic from <strong>zig_xboxinput</strong> into a reusable
+  module. The approach introduces a single new file — <code>src/input.zig</code> — that
+  abstracts both keyboard and gamepad behind a unified API. The game's <code>update()</code>
+  function then reads from this abstraction instead of calling raylib keyboard functions directly.
+</p>
+
+<div class="callout info">
+  <div class="callout-title">Why this approach is cleanest</div>
+  <ul>
+    <li><strong>Minimal change to game logic.</strong> Every <code>rl.isKeyDown(.left)</code> becomes <code>input.isDown(.rotate_left)</code>. Game logic stays identical.</li>
+    <li><strong>Keyboard still works.</strong> The abstraction checks both sources, so keyboard players see zero behavior change.</li>
+    <li><strong>Dual-path logic is isolated.</strong> All joydev raw-reading, button mapping, axis normalization, and auto-detection lives in <code>input.zig</code>.</li>
+    <li><strong>No dependency changes.</strong> Both projects already use the same raylib-zig commit.</li>
+    <li><strong>Platform-safe.</strong> Raw joydev code is Linux-only; on Windows/macOS it compiles to a no-op.</li>
+  </ul>
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 2. CURRENT STATE                                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="current-state">
+<h2>2. Current State of Both Projects</h2>
+
+<h3>2.1 zig_xboxinput</h3>
+<p>
+  A standalone Xbox controller visualizer/tester. Its core value is a <strong>dual-path
+  input architecture</strong> that solves the fundamental Linux gamepad problem: raylib/GLFW
+  often detects a controller but returns zero for all buttons because it lacks an SDL
+  GameControllerDB mapping for that specific VID/PID/bus combination.
+</p>
+
+<h4>Reusable components</h4>
+<table>
+  <thead>
+    <tr><th>Component</th><th>Location</th><th>What it does</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>RawJoystick</code> struct</td><td><code>main.zig</code> L31–120</td><td>Opens <code>/dev/input/js*</code>, polls events, tracks axes/buttons/dpad/name</td></tr>
+    <tr><td><code>js_event</code> extern struct</td><td>L24–29</td><td>8-byte joydev event structure</td></tr>
+    <tr><td>Ioctl constants</td><td>L8–10</td><td><code>JSIOCGAXES</code>, <code>JSIOCGBUTTONS</code>, <code>JSIOCGNAME</code> — query device capabilities</td></tr>
+    <tr><td><code>JS_BTN_MAP</code> array</td><td>L129–147</td><td>Maps raw js button indices → raylib <code>GamepadButton</code> enum</td></tr>
+    <tr><td>xpad axis mapping</td><td>inline in <code>poll()</code> &amp; main loop</td><td>axes 0=LX, 1=LY, 2=LT, 3=RX, 4=RY, 5=RT, 6/7=D-pad hat</td></tr>
+    <tr><td>Trigger normalization</td><td>main loop</td><td><code>(axis + 1.0) / 2.0</code> converts [-1,1] → [0,1]</td></tr>
+    <tr><td>D-pad hat switch decoding</td><td><code>poll()</code></td><td>axis 6 = left/right, axis 7 = up/down</td></tr>
+    <tr><td>Gamepad mapping strings</td><td>main loop</td><td>7 SDL GameControllerDB strings for Xbox 360/One/Series controllers</td></tr>
+    <tr><td>Auto-detection logic</td><td>main loop ~L170–195</td><td>Detects which input path works, falls back to raw joydev</td></tr>
+    <tr><td>udev rules</td><td><code>udev/99-xbox-controller.rules</code></td><td>Grants non-root access to gamepad device nodes</td></tr>
+  </tbody>
+</table>
+
+<div class="callout warning">
+  <div class="callout-title">NOT reusable</div>
+  The entire rendering/UI code — <code>drawCircleButton</code>, <code>drawStick</code>,
+  <code>drawTriggerBar</code>, layout, diagnostics panel — is visualizer-specific and
+  should <strong>not</strong> be copied.
+</div>
+
+<h3>2.2 zigsteroids</h3>
+<p>
+  An Asteroids game with keyboard-only input. All input is read inline in <code>update()</code>
+  via direct <code>rl.isKeyDown()</code> / <code>rl.isKeyPressed()</code> calls. There is no
+  input abstraction layer.
+</p>
+
+<table>
+  <thead>
+    <tr><th>Action</th><th>Keyboard</th><th>Code location</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Rotate left</td><td><code>rl.isKeyDown(.left)</code></td><td><code>update()</code> ~L222</td></tr>
+    <tr><td>Rotate right</td><td><code>rl.isKeyDown(.right)</code></td><td><code>update()</code> ~L226</td></tr>
+    <tr><td>Thrust</td><td><code>rl.isKeyDown(.up)</code></td><td><code>update()</code> ~L230</td></tr>
+    <tr><td>Shield</td><td><code>rl.isKeyPressed(.down)</code></td><td><code>update()</code> ~L213</td></tr>
+    <tr><td>Shoot</td><td><code>rl.isKeyPressed(.space)</code> / <code>rl.isMouseButtonPressed(.left)</code></td><td><code>update()</code> ~L249</td></tr>
+    <tr><td>Pause</td><td><code>rl.isKeyPressed(.h)</code> / <code>.p</code></td><td><code>update()</code> ~L197</td></tr>
+    <tr><td>New game</td><td><code>rl.isKeyPressed(.one)</code></td><td><code>update()</code> ~L204</td></tr>
+    <tr><td>Thruster visual</td><td><code>rl.isKeyDown(.w)</code></td><td><code>render()</code> ~L398</td></tr>
+  </tbody>
+</table>
+
+<div class="callout info">
+  <div class="callout-title">Key alignment</div>
+  Both projects use the <strong>same raylib-zig dependency</strong> at the same commit
+  (<code>a4d18b2d1cf8fdddec68b5b084535fca0475f466</code>) and the <strong>same Zig version</strong>
+  (0.15.2). This means zero dependency or build-system conflicts.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 3. ARCHITECTURE                                                       -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="architecture">
+<h2>3. Architecture: Input Abstraction Layer</h2>
+
+<p>
+  The architecture introduces a single new module (<code>src/input.zig</code>) that sits
+  between raylib's raw input API and the game's <code>update()</code> function. It abstracts
+  away whether input comes from keyboard or gamepad, and — on Linux — whether the gamepad
+  is read via raylib's mapped path or the raw joydev fallback.
+</p>
+
+<div class="arch-diagram">
+  <div class="arch-box game">
+    zigsteroids <code>update()</code>
+    <div class="sub">calls <code>input.isDown(.rotate_left)</code> etc.</div>
+  </div>
+  <div class="arch-arrow">↑</div>
+  <div class="arch-box input">
+    <code>src/input.zig</code> — Input Abstraction Layer
+    <div class="sub"><code>Action</code> enum · <code>Input</code> struct · edge detection · analog rotation</div>
+  </div>
+  <div class="arch-arrow">↑</div>
+  <div class="arch-row">
+    <div class="arch-col">
+      <div class="arch-box">
+        Keyboard
+        <div class="sub"><code>rl.isKeyDown()</code><br><code>rl.isKeyPressed()</code></div>
+      </div>
+    </div>
+    <div class="arch-col">
+      <div class="arch-box">
+        Gamepad — raylib mapped
+        <div class="sub"><code>rl.isGamepadButtonDown()</code><br><code>rl.getGamepadAxisMovement()</code></div>
+      </div>
+    </div>
+    <div class="arch-col">
+      <div class="arch-box" style="border-color:var(--purple);">
+        Gamepad — raw joydev
+        <div class="sub"><code>/dev/input/js*</code><br><span class="tag linux">Linux only</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="arch-arrow">↑</div>
+  <div style="font-size:0.82em; color:var(--text-dim); text-align:center; max-width:500px;">
+    Auto-detection at runtime: tries raylib mapped path first,
+    falls back to raw joydev when GLFW has no mapping for the controller.
+  </div>
+</div>
+
+<h3>3.1 The <code>input.zig</code> module structure</h3>
+
+<pre><code><span class="com">// src/input.zig</span>
+<span class="kw">const</span> std = <span class="fn">@import</span>(<span class="str">"std"</span>);
+<span class="kw">const</span> rl = <span class="fn">@import</span>(<span class="str">"raylib"</span>);
+
+<span class="com">// ── Game actions (what the game cares about) ──────────────────</span>
+<span class="kw">pub const</span> <span class="ty">Action</span> = <span class="kw">enum</span> {
+    rotate_left,
+    rotate_right,
+    thrust,
+    shield,
+    shoot,
+    pause,
+    new_game,
+};
+
+<span class="com">// ── Internal input state ──────────────────────────────────────</span>
+<span class="kw">pub const</span> <span class="ty">Input</span> = <span class="kw">struct</span> {
+    <span class="com">// Raw joydev state (Linux only)</span>
+    raw_js: <span class="kw">if</span> (is_linux) <span class="ty">RawJoystick</span> <span class="kw">else void</span>,
+    raw_js_open: <span class="ty">bool</span> = <span class="kw">false</span>,
+    use_raw: <span class="ty">bool</span> = <span class="kw">false</span>,
+    detection_done: <span class="ty">bool</span> = <span class="kw">false</span>,
+    connected: <span class="ty">bool</span> = <span class="kw">false</span>,
+
+    <span class="com">// Edge-detection state buffers</span>
+    cur_gamepad_actions: [@<span class="fn">typeInfo</span>(<span class="ty">Action</span>).<span class="str">@"enum"</span>.fields.len]<span class="ty">bool</span> = <span class="fn">@splat</span>(<span class="kw">false</span>),
+    prev_gamepad_actions: [@<span class="fn">typeInfo</span>(<span class="ty">Action</span>).<span class="str">@"enum"</span>.fields.len]<span class="ty">bool</span> = <span class="fn">@splat</span>(<span class="kw">false</span>),
+
+    <span class="com">// ── Public API ──</span>
+    <span class="kw">pub fn</span> <span class="fn">init</span>() <span class="ty">Input</span> { ... }
+    <span class="kw">pub fn</span> <span class="fn">deinit</span>(self: *<span class="ty">Input</span>) <span class="kw">void</span> { ... }
+    <span class="kw">pub fn</span> <span class="fn">update</span>(self: *<span class="ty">Input</span>) <span class="kw">void</span> { ... }  <span class="com">// call once per frame</span>
+    <span class="kw">pub fn</span> <span class="fn">isDown</span>(self: *<span class="kw">const</span> <span class="ty">Input</span>, action: <span class="ty">Action</span>) <span class="ty">bool</span> { ... }      <span class="com">// held (continuous)</span>
+    <span class="kw">pub fn</span> <span class="fn">isPressed</span>(self: *<span class="ty">Input</span>, action: <span class="ty">Action</span>) <span class="ty">bool</span> { ... }          <span class="com">// edge-triggered</span>
+    <span class="kw">pub fn</span> <span class="fn">rotationAmount</span>(self: *<span class="kw">const</span> <span class="ty">Input</span>) <span class="ty">f32</span> { ... }                <span class="com">// analog rotation</span>
+    <span class="kw">pub fn</span> <span class="fn">isGamepadConnected</span>(self: *<span class="kw">const</span> <span class="ty">Input</span>) <span class="ty">bool</span> { ... }
+};
+</code></pre>
+
+<h3>3.2 What goes into <code>input.zig</code></h3>
+
+<table>
+  <thead>
+    <tr><th>Source</th><th>What</th><th>Tag</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>zig_xboxinput <code>main.zig</code> L24–29</td><td><code>js_event</code> extern struct</td><td><span class="tag copy">copy</span></td></tr>
+    <tr><td>zig_xboxinput <code>main.zig</code> L8–10</td><td>Ioctl constants</td><td><span class="tag copy">copy</span></td></tr>
+    <tr><td>zig_xboxinput <code>main.zig</code> L21–23</td><td><code>JS_EVENT_*</code> constants</td><td><span class="tag copy">copy</span></td></tr>
+    <tr><td>zig_xboxinput <code>main.zig</code> L31–120</td><td><code>RawJoystick</code> struct (init, open, close, nameSlice, poll)</td><td><span class="tag copy">copy</span></td></tr>
+    <tr><td>zig_xboxinput <code>main.zig</code> L129–147</td><td><code>JS_BTN_MAP</code> array</td><td><span class="tag copy">copy</span></td></tr>
+    <tr><td>zig_xboxinput main loop</td><td>7 gamepad mapping strings for <code>rl.setGamepadMappings()</code></td><td><span class="tag copy">copy</span></td></tr>
+    <tr><td>zig_xboxinput main loop ~L170–195</td><td>Auto-detection logic → refactored into <code>detectMode()</code></td><td><span class="tag copy">copy</span></td></tr>
+    <tr><td>zig_xboxinput inline closure</td><td><code>btnDown()</code> helper → refactored into <code>gamepadButtonDown()</code></td><td><span class="tag copy">copy</span></td></tr>
+    <tr><td>New</td><td><code>Action</code> enum and keyboard-to-action mapping</td><td><span class="tag new">new</span></td></tr>
+    <tr><td>New</td><td>Edge-triggered gamepad button detection (prev/cur state buffers)</td><td><span class="tag new">new</span></td></tr>
+    <tr><td>New</td><td>Analog stick → rotation mapping with dead zone</td><td><span class="tag new">new</span></td></tr>
+    <tr><td>New</td><td>Platform conditional compilation via <code>@import("builtin").os.tag</code></td><td><span class="tag new">new</span></td></tr>
+  </tbody>
+</table>
+
+<h3>3.3 Platform conditional compilation</h3>
+
+<p>
+  On non-Linux platforms, the raw joydev fields and methods compile to no-ops, and only the
+  raylib mapped gamepad path is used. This keeps the build clean on Windows (where XInput
+  works natively via raylib) and macOS.
+</p>
+
+<pre><code><span class="kw">const</span> is_linux = <span class="fn">@import</span>(<span class="str">"builtin"</span>).os.tag == .linux;
+
+<span class="kw">pub const</span> <span class="ty">Input</span> = <span class="kw">struct</span> {
+    raw_js: <span class="kw">if</span> (is_linux) <span class="ty">RawJoystick</span> <span class="kw">else void</span>,
+    <span class="com">// ...</span>
+};
+
+<span class="kw">pub fn</span> <span class="fn">init</span>() <span class="ty">Input</span> {
+    <span class="kw">return</span> .{
+        .raw_js = <span class="kw">if</span> (is_linux) <span class="ty">RawJoystick</span>.<span class="fn">init</span>() <span class="kw">else</span> {},
+        <span class="com">// ...</span>
+    };
+}
+</code></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 4. CONTROL MAPPING                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="control-mapping">
+<h2>4. Control Mapping</h2>
+
+<p>The game has 7 actions. Each maps to both a keyboard key and a gamepad input:</p>
+
+<table>
+  <thead>
+    <tr><th>Game Action</th><th>Keyboard</th><th>Gamepad Button</th><th>Gamepad Axis</th><th>Type</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>rotate_left</strong></td>
+      <td><kbd>←</kbd> Left arrow</td>
+      <td>D-pad left (<code>left_face_left</code>)</td>
+      <td>Left stick X &lt; 0</td>
+      <td><span class="tag new">analog</span></td>
+    </tr>
+    <tr>
+      <td><strong>rotate_right</strong></td>
+      <td><kbd>→</kbd> Right arrow</td>
+      <td>D-pad right (<code>left_face_right</code>)</td>
+      <td>Left stick X &gt; 0</td>
+      <td><span class="tag new">analog</span></td>
+    </tr>
+    <tr>
+      <td><strong>thrust</strong></td>
+      <td><kbd>↑</kbd> / <kbd>W</kbd></td>
+      <td>A button (<code>right_face_down</code>)</td>
+      <td>RT (right trigger) &gt; 0.1</td>
+      <td><span class="tag new">analog</span></td>
+    </tr>
+    <tr>
+      <td><strong>shield</strong></td>
+      <td><kbd>↓</kbd> Down arrow</td>
+      <td>B button (<code>right_face_right</code>)</td>
+      <td>LT (left trigger) &gt; 0.1</td>
+      <td>digital</td>
+    </tr>
+    <tr>
+      <td><strong>shoot</strong></td>
+      <td><kbd>Space</kbd> / <kbd>LMB</kbd></td>
+      <td>A button (<code>right_face_down</code>)</td>
+      <td>—</td>
+      <td>edge-triggered</td>
+    </tr>
+    <tr>
+      <td><strong>pause</strong></td>
+      <td><kbd>H</kbd> / <kbd>P</kbd></td>
+      <td>Start (<code>middle_right</code>)</td>
+      <td>—</td>
+      <td>edge-triggered</td>
+    </tr>
+    <tr>
+      <td><strong>new_game</strong></td>
+      <td><kbd>1</kbd></td>
+      <td>Start (<code>middle_right</code>)</td>
+      <td>—</td>
+      <td>edge-triggered</td>
+    </tr>
+  </tbody>
+</table>
+
+<details>
+<summary>Design decisions explained</summary>
+<div>
+  <h4>Why A for both thrust and shoot?</h4>
+  <p>
+    Thrust uses RT (right trigger) for analog intensity with a threshold so light touches
+    don't fire. But A button (right_face_down) is also accepted as a digital alternative
+    for simplicity. Shoot uses A button — the natural "fire" button on any gamepad. When
+    A is pressed, shoot takes priority over thrust (checked first in the action resolution).
+  </p>
+
+  <h4>Why analog rotation?</h4>
+  <p>
+    The left stick X axis drives rotation speed proportional to stick deflection, with a
+    dead zone. This is the biggest gameplay improvement: the ship turns faster when the
+    stick is pushed further. D-pad left/right provides digital fallback. See
+    <a href="#analog-rotation">§5</a> for implementation details.
+  </p>
+
+  <h4>Why shield on B and LT?</h4>
+  <p>
+    B button (right_face_right) is the simplest digital input. LT (left trigger) is an
+    analog alternative that could enable partial shields in the future. Either input
+    activates the shield.
+  </p>
+
+  <h4>Why Start for both pause and new_game?</h4>
+  <p>
+    Start (middle_right) pauses during gameplay and starts a new game on the game-over
+    screen. The context disambiguates: <code>new_game</code> is only checked when
+    <code>state.gameOver == true</code>, and <code>pause</code> is only checked otherwise.
+    No conflict.
+  </p>
+</div>
+</details>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 5. ANALOG ROTATION                                                    -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="analog-rotation">
+<h2>5. Analog Rotation Support</h2>
+
+<p>
+  Currently, rotation is digital: <code>ROT_SPEED = 2</code> revolutions per second, applied
+  as a constant when the key is held. With analog stick input, rotation speed can scale
+  with stick deflection — the ship turns faster when the stick is pushed further.
+</p>
+
+<h4>Implementation in <code>input.zig</code></h4>
+
+<pre><code><span class="kw">const</span> DEADZONE: <span class="ty">f32</span> = <span class="num">0.15</span>;
+
+<span class="kw">pub fn</span> <span class="fn">rotationAmount</span>(self: *<span class="kw">const</span> <span class="ty">Input</span>) <span class="ty">f32</span> {
+    <span class="com">// Returns -1.0..1.0 for rotation input</span>
+    <span class="com">// Keyboard: -1, 0, or 1 (digital)</span>
+    <span class="com">// Gamepad left stick X: analog with dead zone</span>
+
+    <span class="kw">var</span> val: <span class="ty">f32</span> = <span class="num">0</span>;
+
+    <span class="com">// Keyboard</span>
+    <span class="kw">if</span> (rl.<span class="fn">isKeyDown</span>(.left))  val -= <span class="num">1.0</span>;
+    <span class="kw">if</span> (rl.<span class="fn">isKeyDown</span>(.right)) val += <span class="num">1.0</span>;
+
+    <span class="com">// Gamepad (analog overrides keyboard when stick is pushed)</span>
+    <span class="kw">if</span> (self.connected) {
+        <span class="kw">const</span> lx = <span class="kw">if</span> (self.use_raw) self.raw_js.axes[<span class="num">0</span>]
+                   <span class="kw">else</span> rl.<span class="fn">getGamepadAxisMovement</span>(<span class="num">0</span>, .left_x);
+        <span class="kw">if</span> (@<span class="fn">abs</span>(lx) > DEADZONE) {
+            val = lx;  <span class="com">// analog takes over</span>
+        }
+        <span class="com">// D-pad as digital fallback</span>
+        <span class="kw">if</span> (self.<span class="fn">gamepadButtonDown</span>(.left_face_left))  val -= <span class="num">1.0</span>;
+        <span class="kw">if</span> (self.<span class="fn">gamepadButtonDown</span>(.left_face_right)) val += <span class="num">1.0</span>;
+    }
+
+    <span class="kw">return</span> @<span class="fn">max</span>(-<span class="num">1.0</span>, @<span class="fn">min</span>(<span class="num">1.0</span>, val));
+}
+</code></pre>
+
+<h4>Change in <code>update()</code></h4>
+
+<table>
+  <thead>
+    <tr><th>Before (digital)</th><th>After (analog-capable)</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+<pre style="margin:0"><code><span class="kw">if</span> (rl.<span class="fn">isKeyDown</span>(.left))
+    state.ship.rot -= state.delta
+        * math.tau * ROT_SPEED;
+
+<span class="kw">if</span> (rl.<span class="fn">isKeyDown</span>(.right))
+    state.ship.rot += state.delta
+        * math.tau * ROT_SPEED;</code></pre>
+      </td>
+      <td>
+<pre style="margin:0"><code><span class="kw">const</span> rot = input.<span class="fn">rotationAmount</span>();
+state.ship.rot += state.delta
+    * math.tau * ROT_SPEED * rot;</code></pre>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="callout success">
+  <div class="callout-title">One-line game logic change</div>
+  Two <code>if</code> statements become one multiplication. Works with keyboard
+  (returns -1/0/1) and gamepad (returns analog value). The game logic stays simple.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 6. EDGE DETECTION                                                     -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="edge-detection">
+<h2>6. Edge-Triggered Button Detection</h2>
+
+<p>
+  raylib provides <code>isGamepadButtonDown</code> (held state) but no
+  <code>isGamepadButtonPressed</code> (edge-triggered). The raw joydev path also only
+  provides held state. For actions like <strong>shoot</strong>, <strong>shield</strong>,
+  <strong>pause</strong>, and <strong>new_game</strong>, we need edge detection — trigger
+  once on press, not every frame while held.
+</p>
+
+<h4>Solution: Track previous-frame button state</h4>
+
+<pre><code><span class="kw">pub const</span> <span class="ty">Input</span> = <span class="kw">struct</span> {
+    cur_gamepad_actions:  [N]<span class="ty">bool</span> = <span class="fn">@splat</span>(<span class="kw">false</span>),
+    prev_gamepad_actions: [N]<span class="ty">bool</span> = <span class="fn">@splat</span>(<span class="kw">false</span>),
+
+    <span class="kw">pub fn</span> <span class="fn">update</span>(self: *<span class="ty">Input</span>) <span class="kw">void</span> {
+        <span class="com">// 1. Move current → previous</span>
+        self.prev_gamepad_actions = self.cur_gamepad_actions;
+
+        <span class="com">// 2. Poll gamepad, run auto-detection</span>
+        self.<span class="fn">pollGamepad</span>();
+        self.<span class="fn">detectMode</span>();
+
+        <span class="com">// 3. Snapshot current gamepad action states</span>
+        <span class="kw">for</span> (<span class="num">0</span>..N) |i| {
+            <span class="kw">const</span> action: <span class="ty">Action</span> = @<span class="fn">enumFromInt</span>(i);
+            self.cur_gamepad_actions[i] = self.<span class="fn">checkGamepadAction</span>(action);
+        }
+    }
+
+    <span class="kw">pub fn</span> <span class="fn">isPressed</span>(self: *<span class="kw">const</span> <span class="ty">Input</span>, action: <span class="ty">Action</span>) <span class="ty">bool</span> {
+        <span class="kw">const</span> idx = @<span class="fn">intFromEnum</span>(action);
+        <span class="com">// Edge: gamepad pressed this frame but not last, OR keyboard key pressed</span>
+        <span class="kw">return</span> (self.cur_gamepad_actions[idx] <span class="kw">and</span> !self.prev_gamepad_actions[idx])
+            <span class="kw">or</span> self.<span class="fn">keyboardKeyPressed</span>(action);
+    }
+
+    <span class="kw">pub fn</span> <span class="fn">isDown</span>(self: *<span class="kw">const</span> <span class="ty">Input</span>, action: <span class="ty">Action</span>) <span class="ty">bool</span> {
+        <span class="kw">const</span> idx = @<span class="fn">intFromEnum</span>(action);
+        <span class="com">// Held: gamepad down OR keyboard down</span>
+        <span class="kw">return</span> self.cur_gamepad_actions[idx] <span class="kw">or</span> self.<span class="fn">keyboardKeyDown</span>(action);
+    }
+};
+</code></pre>
+
+<div class="callout warning">
+  <div class="callout-title">Important</div>
+  <code>input.update()</code> must be called <strong>exactly once per frame</strong> before any
+  <code>isPressed()</code> or <code>isDown()</code> calls. This ensures the previous-state
+  buffer is correctly snapshot and edge detection works.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 7. FILE-BY-FILE PLAN                                                  -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="file-plan">
+<h2>7. File-by-File Implementation Plan</h2>
+
+<div class="steps">
+
+<!-- Step 1 -->
+<div class="step">
+<h3>Create <code>src/input.zig</code> <span class="tag new">new file</span></h3>
+<details open>
+<summary>Show extraction checklist</summary>
+<div>
+<ul>
+  <li>Copy <code>js_event</code>, ioctl constants, <code>JS_EVENT_*</code> constants from zig_xboxinput</li>
+  <li>Copy <code>RawJoystick</code> struct (init, open, close, nameSlice, poll) verbatim</li>
+  <li>Copy <code>JS_BTN_MAP</code> array verbatim</li>
+  <li>Copy the 7 gamepad mapping strings for <code>rl.setGamepadMappings()</code></li>
+  <li>Add <code>Action</code> enum</li>
+  <li>Add <code>Input</code> struct with init/deinit/update/isDown/isPressed</li>
+  <li>Add <code>checkGamepadAction()</code> mapping each Action to gamepad buttons/axes</li>
+  <li>Add <code>keyboardKeyDown()</code> / <code>keyboardKeyPressed()</code> mapping each Action to keyboard keys</li>
+  <li>Add <code>detectMode()</code> (extracted from zig_xboxinput's main loop auto-detection)</li>
+  <li>Add <code>rotationAmount()</code> for analog stick rotation</li>
+  <li>Wrap Linux-only code in <code>if (is_linux)</code> / switch on <code>@import("builtin").os.tag</code></li>
+</ul>
+</div>
+</details>
+</div>
+
+<!-- Step 2 -->
+<div class="step">
+<h3>Copy udev rules <span class="tag copy">copy</span> <span class="tag linux">Linux</span></h3>
+<details>
+<summary>Details</summary>
+<div>
+<pre><code>cp zig_xboxinput/udev/99-xbox-controller.rules zigsteroids/udev/</code></pre>
+<p>Add installation instructions to <code>README.txt</code>.</p>
+</div>
+</details>
+</div>
+
+<!-- Step 3 -->
+<div class="step">
+<h3>Modify <code>src/main.zig</code> in zigsteroids <span class="tag modify">modify</span></h3>
+<details open>
+<summary>Show all changes</summary>
+<div>
+
+<h4>3a. Import the new module</h4>
+<pre><code><span class="kw">const</span> input_mod = <span class="fn">@import</span>(<span class="str">"input.zig"</span>);
+<span class="kw">var</span> input: input_mod.<span class="ty">Input</span> = <span class="kw">undefined</span>;</code></pre>
+
+<h4>3b. Initialize in <code>main()</code></h4>
+<pre><code><span class="com">// After rl.initWindow(...)</span>
+input = input_mod.<span class="ty">Input</span>.<span class="fn">init</span>();
+<span class="kw">defer</span> input.<span class="fn">deinit</span>();</code></pre>
+
+<h4>3c. Poll input each frame (before <code>update()</code>)</h4>
+<pre><code><span class="kw">while</span> (!rl.<span class="fn">windowShouldClose</span>()) {
+    state.delta = rl.<span class="fn">getFrameTime</span>();
+    state.now += state.delta;
+
+    input.<span class="fn">update</span>();  <span class="com">// ← NEW: poll gamepad, run detection</span>
+
+    <span class="kw">try</span> <span class="fn">update</span>();
+    <span class="com">// ...</span></code></pre>
+
+<h4>3d. Replace all <code>rl.isKeyDown</code> / <code>rl.isKeyPressed</code> calls in <code>update()</code></h4>
+<table>
+  <thead>
+    <tr><th>Before</th><th>After</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>rl.isKeyDown(.left)</code></td><td><code>input.isDown(.rotate_left)</code></td></tr>
+    <tr><td><code>rl.isKeyDown(.right)</code></td><td><code>input.isDown(.rotate_right)</code></td></tr>
+    <tr><td><code>rl.isKeyDown(.up)</code></td><td><code>input.isDown(.thrust)</code></td></tr>
+    <tr><td><code>rl.isKeyPressed(.down)</code></td><td><code>input.isPressed(.shield)</code></td></tr>
+    <tr><td><code>rl.isKeyPressed(.space)</code></td><td><code>input.isPressed(.shoot)</code></td></tr>
+    <tr><td><code>rl.isMouseButtonPressed(.left)</code></td><td><code>input.isPressed(.shoot)</code></td></tr>
+    <tr><td><code>rl.isKeyPressed(.h)</code> / <code>.p</code></td><td><code>input.isPressed(.pause)</code></td></tr>
+    <tr><td><code>rl.isKeyPressed(.one)</code></td><td><code>input.isPressed(.new_game)</code></td></tr>
+  </tbody>
+</table>
+<p>Plus the analog rotation change (see <a href="#analog-rotation">§5</a>).</p>
+
+<h4>3e. Replace thrust visual check in <code>render()</code></h4>
+<pre><code><span class="com">// Before:</span>
+<span class="kw">if</span> (rl.<span class="fn">isKeyDown</span>(.w) <span class="kw">and</span> @<span class="fn">mod</span>(...) == <span class="num">0</span>) { ... }
+
+<span class="com">// After:</span>
+<span class="kw">if</span> (input.<span class="fn">isDown</span>(.thrust) <span class="kw">and</span> @<span class="fn">mod</span>(...) == <span class="num">0</span>) { ... }</code></pre>
+
+<h4>3f. (Optional) Show gamepad status on help/pause screen</h4>
+<p>Add lines to <code>drawHelpBox()</code> showing controller connection status and gamepad controls:</p>
+<pre><code>Gamepad: Connected (Xbox Series X|S)
+A: Shoot    RT: Thrust    LS: Rotate
+B: Shield   Start: Pause</code></pre>
+
+</div>
+</details>
+</div>
+
+<!-- Step 4 -->
+<div class="step">
+<h3>Update <code>Makefile</code> <span class="tag modify">modify</span></h3>
+<details>
+<summary>Details</summary>
+<div>
+<p>Add udev install target:</p>
+<pre><code>install-udev:
+	sudo cp udev/99-xbox-controller.rules /etc/udev/rules.d/
+	sudo udevadm control --reload-rules
+	sudo udevadm trigger</code></pre>
+</div>
+</details>
+</div>
+
+<!-- Step 5 -->
+<div class="step">
+<h3>Update <code>README.txt</code> <span class="tag modify">modify</span></h3>
+<details>
+<summary>Details</summary>
+<div>
+<p>Add gamepad controls section and udev setup instructions (Linux only). Reference the
+<code>udev/99-xbox-controller.rules</code> file and the install command.</p>
+</div>
+</details>
+</div>
+
+</div>
+
+<div class="callout info">
+  <div class="callout-title">No build.zig changes needed</div>
+  Both projects already use the same <code>build.zig</code> structure and the same raylib-zig
+  dependency at the same commit. <code>input.zig</code> is a local file imported via
+  <code>@import("input.zig")</code>, so no build system changes are needed.
+</div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 8. CHECKLIST                                                          -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="checklist">
+<h2>8. Step-by-Step Checklist</h2>
+
+<ol class="checklist">
+  <li>Create <code>src/input.zig</code> — extract dual-path logic from zig_xboxinput</li>
+  <li>Copy udev rules: <code>cp zig_xboxinput/udev/99-xbox-controller.rules zigsteroids/udev/</code></li>
+  <li>Modify <code>src/main.zig</code> — add import, init, per-frame poll, replace 10 call sites</li>
+  <li>Replace rotation code to use <code>input.rotationAmount()</code> for analog support</li>
+  <li>Replace <code>rl.isKeyDown(.w)</code> in <code>render()</code> with <code>input.isDown(.thrust)</code></li>
+  <li>(Optional) Add gamepad controls display to <code>drawHelpBox()</code></li>
+  <li>Update <code>Makefile</code> — add <code>install-udev</code> target</li>
+  <li>Update <code>README.txt</code> — add gamepad controls and udev instructions</li>
+  <li><code>zig build</code> — verify clean compilation</li>
+  <li><code>zig build run</code> — verify keyboard still works (regression test)</li>
+  <li>Connect Xbox controller, test gamepad controls</li>
+  <li>Test without controller (keyboard-only mode still works)</li>
+  <li>Test with controller on a system without udev rules (should fall back gracefully)</li>
+</ol>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 9. ANTI-PATTERNS                                                      -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="anti-patterns">
+<h2>9. What NOT to Do</h2>
+
+<table>
+  <thead>
+    <tr><th>Don't</th><th>Why</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Don't merge zig_xboxinput as a dependency</td>
+      <td>It's not a library — it's a standalone app. Extracting the reusable parts into <code>input.zig</code> is cleaner.</td>
+    </tr>
+    <tr>
+      <td>Don't use zig_xboxinput's rendering code</td>
+      <td>None of <code>drawCircleButton</code>, <code>drawStick</code>, <code>drawTriggerBar</code>, layout, or diagnostics code is needed.</td>
+    </tr>
+    <tr>
+      <td>Don't change the build system or dependencies</td>
+      <td>Both projects already share the same raylib-zig commit. <code>input.zig</code> is a local import.</td>
+    </tr>
+    <tr>
+      <td>Don't remove keyboard support</td>
+      <td>The abstraction checks both keyboard and gamepad. Keyboard players should see zero behavior change.</td>
+    </tr>
+    <tr>
+      <td>Don't add platform-specific build targets</td>
+      <td>Use <code>@import("builtin").os.tag</code> for conditional compilation within <code>input.zig</code> itself.</td>
+    </tr>
+    <tr>
+      <td>Don't over-engineer the Action enum</td>
+      <td>7 actions is all the game needs. Resist adding remapping, multiple controllers, or config files at this stage.</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 10. RISK ASSESSMENT                                                   -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="risks">
+<h2>10. Risk Assessment</h2>
+
+<table>
+  <thead>
+    <tr><th>Risk</th><th>Likelihood</th><th>Mitigation</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Raw joydev ioctl constants wrong on non-x86_64</td>
+      <td style="color:var(--green)">Low</td>
+      <td>Document the formula in comments; constants are precomputed for x86_64 only</td>
+    </tr>
+    <tr>
+      <td>Edge detection bugs cause double-fire or missed shots</td>
+      <td style="color:var(--amber)">Medium</td>
+      <td>Unit-test the <code>isPressed</code> logic; ensure <code>update()</code> is called exactly once per frame</td>
+    </tr>
+    <tr>
+      <td>Analog rotation feels different from keyboard</td>
+      <td style="color:var(--green)">Low</td>
+      <td>Keep digital D-pad rotation as fallback; analog is additive, not replacing</td>
+    </tr>
+    <tr>
+      <td>udev rules not installed → gamepad silently fails</td>
+      <td style="color:var(--amber)">Medium</td>
+      <td>Show "NO CONTROLLER" hint in help screen; document udev setup in README</td>
+    </tr>
+    <tr>
+      <td>raylib mapping strings don't cover all controllers</td>
+      <td style="color:var(--amber)">Medium</td>
+      <td>Raw joydev fallback handles this; that's the whole point of the dual-path design</td>
+    </tr>
+  </tbody>
+</table>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- 11. SUMMARY                                                           -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<section id="summary">
+<h2>11. Summary</h2>
+
+<div class="callout success">
+  <div class="callout-title">The core idea</div>
+  <p>
+    Extract the dual-path gamepad input logic from <strong>zig_xboxinput</strong> into a
+    reusable <code>src/input.zig</code> module, then replace zigsteroids' direct raylib
+    keyboard calls with calls to that module's unified API.
+  </p>
+</div>
+
+<p>The changes break down as:</p>
+
+<div class="pill-row">
+  <span class="tag new">1 new file (input.zig)</span>
+  <span class="tag copy">1 file copied (udev rules)</span>
+  <span class="tag modify">1 file modified (main.zig — 10 call sites)</span>
+  <span class="tag modify">Makefile + README updated</span>
+</div>
+
+<p>
+  The game logic changes are mechanical find-and-replace (10 call sites), plus optional
+  analog rotation. No new dependencies, no build system changes, no removed features, and
+  keyboard players see zero difference.
+</p>
+</section>
+
+<div class="footer">
+  Generated for zigsteroids · Xbox controller integration plan ·
+  Based on zig_xboxinput dual-path input architecture
+</div>
+
+</body>
+</html>

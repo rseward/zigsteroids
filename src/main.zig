@@ -6,6 +6,8 @@ const rl = @import("raylib");
 const rlm = rl.math;
 const Vector2 = rl.Vector2;
 
+const input_mod = @import("input.zig");
+
 const THICKNESS = 2.5;
 const SCALE = 38.0;
 const SIZE = Vector2.init(640 * 2, 480 * 2);
@@ -157,6 +159,7 @@ const Sound = struct {
     explode: rl.Sound,
 };
 var sound: Sound = undefined;
+var input: input_mod.Input = undefined;
 
 fn getMyColor(icolor: MyColor) rl.Color {
     const objcolor = switch (icolor) {
@@ -394,11 +397,11 @@ fn hitAsteroid(a: *Asteroid, impact: ?Vector2) !void {
 fn update() !void {
     // Pause/unpause handling (disabled during game over screen)
     if (!state.paused and !state.gameOver) {
-        if (rl.isKeyPressed(.h) or rl.isKeyPressed(.p)) {
+        if (input.isPressed(.pause)) {
             state.paused = true;
         }
     } else if (state.paused) {
-        if (rl.isKeyPressed(.space) or rl.isKeyPressed(.p) or rl.isKeyPressed(.h)) {
+        if (input.isPressed(.pause) or rl.isKeyPressed(.space)) {
             state.paused = false;
         }
         return;
@@ -408,7 +411,7 @@ fn update() !void {
     // While in game over, ship controls are disabled but asteroids/particles
     // continue to move in the background.
     if (state.gameOver) {
-        if (rl.isKeyPressed(.one)) {
+        if (input.isPressed(.new_game)) {
             state.gameOver = false;
             try resetGame();
         }
@@ -418,7 +421,7 @@ fn update() !void {
 
     // Shield activation
     if (!state.ship.isDead() and !state.shieldActive and state.now >= state.shieldReadyTime) {
-        if (rl.isKeyPressed(.down)) {
+        if (input.isPressed(.shield)) {
             state.shieldActive = true;
             state.shieldActivateTime = state.now;
         }
@@ -438,18 +441,15 @@ fn update() !void {
         const ROT_SPEED = 2;
         const SHIP_SPEED = 24;
 
-        if (rl.isKeyDown(.left)) {
-            state.ship.rot -= state.delta * math.tau * ROT_SPEED;
-        }
-
-        if (rl.isKeyDown(.right)) {
-            state.ship.rot += state.delta * math.tau * ROT_SPEED;
-        }
+        // Analog rotation: keyboard returns -1/0/1, gamepad left stick
+        // returns analog value proportional to stick deflection.
+        const rot = input.rotationAmount();
+        state.ship.rot += state.delta * math.tau * ROT_SPEED * rot;
 
         const dirAngle = state.ship.rot + (math.pi * 0.5);
         const shipDir = Vector2.init(math.cos(dirAngle), math.sin(dirAngle));
 
-        if (rl.isKeyDown(.up)) {
+        if (input.isDown(.thrust)) {
             state.ship.vel = rlm.vector2Add(
                 state.ship.vel,
                 rlm.vector2Scale(shipDir, state.delta * SHIP_SPEED),
@@ -468,7 +468,7 @@ fn update() !void {
             @mod(state.ship.pos.y, SIZE.y),
         );
 
-        if (rl.isKeyPressed(.space) or rl.isMouseButtonPressed(.left)) {
+        if (input.isPressed(.shoot)) {
             try state.projectiles.append(state.allocator, .{
                 .pos = rlm.vector2Add(
                     state.ship.pos,
@@ -811,13 +811,22 @@ fn drawHelpBox() void {
         "Large Space Rocks",
         "",
         "LEFT/RIGHT  Rotate",
-        "UP           Thrust",
-        "DOWN         Shields",
-        "SPACE        Shoot",
-        "H / P        Pause",
-        "1            New Game",
+        "UP/W        Thrust",
+        "DOWN        Shields",
+        "SPACE/CLICK Shoot",
+        "H / P       Pause",
+        "1           New Game",
+    };
+
+    // Gamepad control lines (shown only when a gamepad is connected)
+    const gamepad_lines_all = [_][:0]const u8{
         "",
-        "PAUSED",
+        "Gamepad",
+        "LS / D-PAD  Rotate",
+        "RT          Thrust",
+        "B / LT      Shields",
+        "A           Shoot",
+        "Start       Pause",
     };
 
     const font_size: i32 = 30;
@@ -825,10 +834,14 @@ fn drawHelpBox() void {
     const padding: i32 = 40;
     const total_line_height = font_size + line_spacing;
 
+    // Determine how many gamepad lines to show
+    const show_gamepad = input.isGamepadConnected();
+    const gamepad_line_count: i32 = if (show_gamepad) @intCast(gamepad_lines_all.len) else 1; // 1 for the "PAUSED" line + blank
+
     // Extra space for stats section (blank line + accuracy + kill/death)
     const stats_lines: i32 = 3;
     const panel_width: f32 = 520;
-    const panel_height: f32 = @floatFromInt(@as(i32, @intCast(lines.len)) * total_line_height + stats_lines * total_line_height + padding * 2);
+    const panel_height: f32 = @floatFromInt(@as(i32, @intCast(lines.len)) * total_line_height + gamepad_line_count * total_line_height + stats_lines * total_line_height + padding * 2);
 
     const panel_x = (SIZE.x - panel_width) / 2;
     const panel_y = (SIZE.y - panel_height) / 2;
@@ -845,6 +858,25 @@ fn drawHelpBox() void {
         const text_width = rl.measureText(line, font_size);
         const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
         rl.drawText(line, x, y, font_size, text_color);
+        y += total_line_height;
+    }
+
+    // Gamepad section (only shown when a gamepad is connected)
+    if (show_gamepad) {
+        for (gamepad_lines_all) |line| {
+            const text_width = rl.measureText(line, font_size);
+            const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
+            rl.drawText(line, x, y, font_size, text_color);
+            y += total_line_height;
+        }
+    }
+
+    // "PAUSED" label
+    {
+        const paused_text: [:0]const u8 = "PAUSED";
+        const text_width = rl.measureText(paused_text, font_size);
+        const x: i32 = @as(i32, @intFromFloat(panel_x + (panel_width - @as(f32, @floatFromInt(text_width))) / 2));
+        rl.drawText(paused_text, x, y, font_size, text_color);
         y += total_line_height;
     }
 
@@ -882,7 +914,10 @@ fn drawGameOverBox() void {
     const score_str = std.fmt.bufPrintZ(&score_buf, "{d}", .{state.score}) catch return;
 
     const coin_text = "Coin detected in pocket";
-    const restart_hint = "Press 1 to start a new game";
+    const restart_hint = if (input.isGamepadConnected())
+        "Press 1 or Start to start a new game"
+    else
+        "Press 1 to start a new game";
     // "Press help" with the 'h' rendered in yellow
     const help_prefix = "Press ";
     const help_highlight = "h";
@@ -1040,7 +1075,7 @@ fn render() !void {
             shipcolor,
         );
 
-        if (rl.isKeyDown(.w) and @mod(@as(i32, @intFromFloat(state.now * 20)), 2) == 0) {
+        if (input.isDown(.thrust) and @mod(@as(i32, @intFromFloat(state.now * 20)), 2) == 0) {
             drawLines(
                 state.ship.pos,
                 SCALE,
@@ -1221,6 +1256,9 @@ pub fn main() !void {
     rl.setWindowPosition(100, 100);
     rl.setTargetFPS(60);
 
+    input = input_mod.Input.init();
+    defer input.deinit();
+
     rl.initAudioDevice();
     // rl.setMasterVolume(0.8);
     defer rl.closeAudioDevice();
@@ -1262,6 +1300,8 @@ pub fn main() !void {
     while (!rl.windowShouldClose()) {
         state.delta = rl.getFrameTime();
         state.now += state.delta;
+
+        input.update();
 
         try update();
 
