@@ -1,7 +1,7 @@
 .{
     .name = .zigsteroids,
-    .version = "0.3.4",
-    .fingerprint = 0x6ff7ae9e8c234ba0,
+    .version = "0.4.0",
+    .fingerprint = 0x6ff7ae9e8ed3dbc9,
     .dependencies = .{
         .raylib_zig = .{
             .url = "git+https://github.com/raylib-zig/raylib-zig#a4d18b2d1cf8fdddec68b5b084535fca0475f466",

@@ -16,3 +16,9 @@ install-udev:
 	sudo cp udev/99-xbox-controller.rules /etc/udev/rules.d/
 	sudo udevadm control --reload-rules
 	sudo udevadm trigger
+
+# Remove build outputs and the Zig build cache.
+clean:
+	rm -rf zig-out .zig-cache
+
+.PHONY: init build run deps install-udev clean

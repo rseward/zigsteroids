@@ -1,3 +1,11 @@
+# 0.4.0
+
+- Added Xbox controller support — rotate with the left stick or D-pad (analog stick gives variable rotation speed), thrust with RT, shield with B/LT, shoot with A, and pause or start a new game with Start; ships with Linux udev rules and an automatic fallback to joydev
+- Added game statistics — shot accuracy, alien-to-player kill ratio, and the current asteroid field number, shown on the pause and game-over overlays
+- Added a visual quantum rematerialization timer so you can watch the ship's respawn countdown
+- Doubled the shield duration
+- Added Raspberry Pi 5 support — builds and runs natively on Raspberry Pi OS Bookworm's Wayland desktop using the V3D GPU via OpenGL ES, and can be cross-compiled from another machine using `arm/Makefile`
+
 # 0.3.4
 
 - Alien saucers now fire green bullets at the player's ship

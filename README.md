@@ -145,6 +145,98 @@ Or run the built binary directly:
 ./zig-out/bin/lsr
 ```
 
+## Raspberry Pi recommended self build
+
+On a Raspberry Pi 5 (or Pi 500 Plus) running **Raspberry Pi OS Bookworm**, the
+default desktop is **Wayland** (the `labwc` compositor), and the GPU is driven by
+the `vc4-kms-v3d` (V3D) driver. Building and running on the Pi itself works well
+-- the cross-compiled binary plays smoothly even with a field full of rocks --
+but the **default build options need adjusting** for this platform:
+
+- raylib's default **X11/GLX** backend fails under Xwayland with
+  `GLX: Failed to create context: GLXBadFBConfig`.
+- Switching to the **Wayland** backend fixes windowing, but raylib's default
+  **desktop OpenGL** then fails at EGL context creation with
+  `EGL: Failed to create context: Arguments are inconsistent`, because the V3D
+  driver exposes **OpenGL ES** via EGL.
+
+The fix is to build raylib with the **Wayland** display backend and **OpenGL ES
+3**. The project's `build.zig` exposes both as build options:
+`-Dlinux_display_backend` and `-Dopengl_version`.
+
+### 1. Install Zig
+
+Install the **aarch64** build of Zig 0.15.2 on the Pi (ZVM works on aarch64 too,
+or download the tarball directly):
+
+```bash
+wget https://ziglang.org/download/0.15.2/zig-linux-aarch64-0.15.2.tar.xz
+tar xf zig-linux-aarch64-0.15.2.tar.xz
+export PATH="$PWD/zig-linux-aarch64-0.15.2:$PATH"   # or use zvm
+zig version   # -> 0.15.2
+```
+
+### 2. Install the system dependencies
+
+The X11/GL dev headers plus the Wayland/EGL/GLES dev headers raylib needs:
+
+```bash
+sudo apt update
+sudo apt install -y \
+    libx11-dev libxext-dev libxrandr-dev libxinerama-dev \
+    libxi-dev libxcursor-dev libxfixes-dev libxrender-dev libgl-dev \
+    libwayland-dev libxkbcommon-dev wayland-protocols libegl-dev libgles-dev
+```
+
+### 3. Get the source and build
+
+```bash
+git clone git@github.com:rseward/zigsteroids.git
+cd zigsteroids
+git checkout zig-0.15
+
+zig build -Dlinux_display_backend=wayland -Dopengl_version=gles_3 --release=fast
+```
+
+This compiles raylib with the Wayland/EGL backend and OpenGL ES 3, producing an
+aarch64 executable at `zig-out/bin/lsr`. (For a debug build, drop
+`--release=fast`.)
+
+### 4. Run it
+
+Run the binary **from the project directory** so it can find the `resources/`
+sound files:
+
+```bash
+./zig-out/bin/lsr
+```
+
+You should see it initialize the V3D GPU, e.g.:
+
+```
+INFO: GL: OpenGL device information:
+INFO:     > Vendor:   Broadcom
+INFO:     > Renderer: V3D 7.1.10.2
+```
+
+> Note: Wayland does not let applications set their own window position, so you
+> will see benign `Wayland: The platform does not support setting the window
+> position` warnings from GLFW. The window is created and works fine.
+
+### Cross-compiling instead (optional)
+
+If you'd rather build the aarch64 binary on another machine and copy it to the
+Pi, the cross-compile tooling lives in `arm/Makefile` (run it from the project
+root):
+
+```bash
+make -f arm/Makefile pi-sysroot PI_HOST=pi@<pi-ip>            # one-time: pull a sysroot
+make -f arm/Makefile build-pi5 DISPLAY_BACKEND=wayland OPENGL_VERSION=gles_3
+scp zig-out/bin/lsr pi@<pi-ip>:~/zigsteroids/
+```
+
+The resulting binary runs identically on the Pi.
+
 ## Project Structure
 
 ```

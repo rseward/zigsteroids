@@ -3,6 +3,9 @@ zig-cache/
 zig-out/
 .DS_Store
 
+# Raspberry Pi cross-compile sysroot (populated by `make pi-sysroot`)
+pi-sysroot/
+
 # Emacs backup files
 *~
 \#*\#
