@@ -685,9 +685,11 @@ fn update() !void {
 
     if (state.ship.isDead() and (state.now - state.ship.deathTime) > 3.0) {
         if (state.lives == 0) {
-            // Last life lost: enter game over screen instead of auto-resetting.
-            state.gameOver = true;
-            state.lastBerzerkCoinTime = state.now;
+            if (!state.gameOver) {
+                // Last life lost: enter game over screen instead of auto-resetting.
+                state.gameOver = true;
+                state.lastBerzerkCoinTime = state.now;
+            }
         } else {
             try resetStage();
         }
