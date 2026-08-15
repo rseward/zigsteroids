@@ -19,7 +19,7 @@ const SHIELD_RADIUS = SCALE * 1.5;
 // The asteroid field is divided into a FIELD_GRID_DIV x FIELD_GRID_DIV grid for
 // spawn placement. The width/height of one grid square is the minimum distance an
 // asteroid is allowed to spawn from the player's ship, preventing unfair deaths.
-const FIELD_GRID_DIV: i32 = 12;
+const FIELD_GRID_DIV: i32 = 3;
 
 const MyColor = enum(u4) {
     white,

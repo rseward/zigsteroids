@@ -12,9 +12,26 @@ The presence of an alien on the field also should not prevent the transition
 to a new field. Instead the alien(s) should also be transitioned to the new
 field along with the player when the last small rock has been destroyed.
 
+This might be a simpler explanation of when a field transistion should occur.
+
+```pseudo code
+    """ Returns True if all asteroids in the list are small or the list is empty"""
+    def all_asteroids_are_small(asteroids):
+        pass # See conditions above
+
+    field_transition = False
+
+    # Only do this transition check if all the asteroids on screen are small
+    if all_asteroids_are_small(asteroids) and len(asteroids) == 0:
+       field_transition = True
+```
+
 When spawning rocks around the player, divide the asteroid field into a
-twelve by twelve grid. The width and height of one of these grid squares is
-the minimum distance an asteroid is allowed to spawn near the player's ship.
+three by three grid (to determine square grid size in pixels). The width and height
+of one of these grid squares is the minimum distance an asteroid is allowed to spawn
+near the player's ship. If an asteroid would violate this minimum grid location,
+spawn the asteroid again at a random location and check the minimum distance again.
+
 This change prevents "unfair" deaths that frequently occur at present.
 
 ## Implementation
@@ -46,9 +63,11 @@ player is not unfairly hit during the transition.
 
 ### Grid-based spawn placement (src/main.zig — resetAsteroids())
 
-`FIELD_GRID_DIV` (12) divides the field into a 12×12 grid. The width and
+`FIELD_GRID_DIV` (3) divides the field into a 3×3 grid. The width and
 height of one grid square is the minimum distance an asteroid may spawn from
-the player's ship, preventing unfair deaths from rocks appearing on top of
-the player.
+the player's ship. If a randomly chosen position falls within the player's
+grid square, a new random position is drawn and checked again (rejection
+sampling). This prevents unfair deaths from rocks appearing on top of the
+player.
 
 ## Status: Implemented
