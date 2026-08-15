@@ -203,7 +203,7 @@ fn drawLines(org: Vector2, scale: f32, rot: f32, points: []const Vector2, connec
         .rot = rot,
     };
 
-    
+
     const bound = if (connect) points.len else (points.len - 1);
     for (0..bound) |i| {
         rl.drawLineEx(
@@ -425,6 +425,7 @@ fn update() !void {
             state.gameOver = false;
             try resetGame();
         } else if ((state.now - state.lastBerzerkCoinTime) >= BERZERK_COIN_INTERVAL) {
+            std.debug.print("Coin detected in pocket!\n", .{});
             rl.playSound(sound.berzerkCoin);
             state.lastBerzerkCoinTime = state.now;
         }
@@ -719,7 +720,7 @@ fn update() !void {
         try resetAsteroids();
     }
 
-    
+
 
     if ((state.lastScore / 5000) != (state.score / 5000)) {
         try state.aliens.append(state.allocator, .{
@@ -1086,7 +1087,7 @@ fn render() !void {
 
     if (!state.ship.isDead()) {
         const shipcolor: rl.Color = qrcColor();
-        
+
         drawLines(
             state.ship.pos,
             SCALE,
