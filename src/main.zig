@@ -16,6 +16,11 @@ const SHIELD_DURATION = 2.0;
 const SHIELD_RECHARGE = 25.0;
 const SHIELD_RADIUS = SCALE * 1.5;
 
+// The asteroid field is divided into a FIELD_GRID_DIV x FIELD_GRID_DIV grid for
+// spawn placement. The width/height of one grid square is the minimum distance an
+// asteroid is allowed to spawn from the player's ship, preventing unfair deaths.
+const FIELD_GRID_DIV: i32 = 12;
+
 const MyColor = enum(u4) {
     white,
     green,
@@ -694,7 +699,7 @@ fn update() !void {
     }
     state.lastBloop = state.bloop;
 
-    if (!state.gameOver and state.asteroids.items.len == 0 and state.aliens.items.len == 0) {
+    if (!state.gameOver and state.asteroids.items.len == 0 and state.asteroids_queue.items.len == 0) {
         try resetAsteroids();
     }
 
@@ -1184,14 +1189,31 @@ fn render() !void {
 fn resetAsteroids() !void {
     try state.asteroids.resize(state.allocator, 0);
 
+    // The minimum distance an asteroid may spawn from the player's ship is one
+    // grid square of a FIELD_GRID_DIV x FIELD_GRID_DIV division of the field.
+    const min_dist_x = SIZE.x / @as(f32, @floatFromInt(FIELD_GRID_DIV));
+    const min_dist_y = SIZE.y / @as(f32, @floatFromInt(FIELD_GRID_DIV));
+
     for (0..(15 + state.score / 1500)) |_| {
         const angle = math.tau * state.rand.float(f32);
         const size = state.rand.enumValue(AsteroidSize);
-        try state.asteroids_queue.append(state.allocator, .{
-            .pos = Vector2.init(
+
+        // Pick a spawn position that is at least one grid square away from the
+        // player's ship so rocks don't appear on top of it (unfair deaths).
+        var pos = Vector2.init(0, 0);
+        while (true) {
+            pos = Vector2.init(
                 state.rand.float(f32) * SIZE.x,
                 state.rand.float(f32) * SIZE.y,
-            ),
+            );
+            const dx = if (pos.x > state.ship.pos.x) pos.x - state.ship.pos.x else state.ship.pos.x - pos.x;
+            const dy = if (pos.y > state.ship.pos.y) pos.y - state.ship.pos.y else state.ship.pos.y - pos.y;
+            // Accept once the candidate is outside the player's grid square.
+            if (!(dx < min_dist_x and dy < min_dist_y)) break;
+        }
+
+        try state.asteroids_queue.append(state.allocator, .{
+            .pos = pos,
             .vel = rlm.vector2Scale(
                 Vector2.init(math.cos(angle), math.sin(angle)),
                 size.velocityScale() * 3.0 * state.rand.float(f32),
