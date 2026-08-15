@@ -21,6 +21,9 @@ const SHIELD_RADIUS = SCALE * 1.5;
 // asteroid is allowed to spawn from the player's ship, preventing unfair deaths.
 const FIELD_GRID_DIV: i32 = 3;
 
+// How often the berzerk coin jingle plays while the game over overlay is shown.
+const BERZERK_COIN_INTERVAL = 30.0;
+
 const MyColor = enum(u4) {
     white,
     green,
@@ -147,6 +150,7 @@ const State = struct {
     shieldActivateTime: f32 = 0.0,
     shieldReadyTime: f32 = 0.0,
     gameOver: bool = false,
+    lastBerzerkCoinTime: f32 = 0.0,
     shotsFired: usize = 0,
     shotsHit: usize = 0,
     aliensKilled: usize = 0,
@@ -162,6 +166,7 @@ const Sound = struct {
     thrust: rl.Sound,
     asteroid: rl.Sound,
     explode: rl.Sound,
+    berzerkCoin: rl.Sound,
 };
 var sound: Sound = undefined;
 var input: input_mod.Input = undefined;
@@ -419,6 +424,9 @@ fn update() !void {
         if (input.isPressed(.new_game)) {
             state.gameOver = false;
             try resetGame();
+        } else if ((state.now - state.lastBerzerkCoinTime) >= BERZERK_COIN_INTERVAL) {
+            rl.playSound(sound.berzerkCoin);
+            state.lastBerzerkCoinTime = state.now;
         }
         // Skip ship control and spawning logic but continue updating
         // asteroids, particles, projectiles, and aliens below.
@@ -524,7 +532,7 @@ fn update() !void {
             );
 
             // check for ship v. asteroid collision
-            if (state.quantumRematerizationCount==0 and !state.ship.isDead() and rlm.vector2Distance(a.pos, state.ship.pos) < a.size.size() * a.size.collisionScale()) {
+            if (!a.remove and state.quantumRematerizationCount==0 and !state.ship.isDead() and rlm.vector2Distance(a.pos, state.ship.pos) < a.size.size() * a.size.collisionScale()) {
                 if (state.shieldActive and rlm.vector2Distance(a.pos, state.ship.pos) < SHIELD_RADIUS) {
                     // Shield destroys asteroid (splits normally)
                     try hitAsteroid(a, rlm.vector2Normalize(state.ship.vel));
@@ -536,7 +544,7 @@ fn update() !void {
 
             // check for alien v. asteroid collision
             for (state.aliens.items) |*l| {
-                if (!l.remove and rlm.vector2Distance(a.pos, l.pos) < a.size.size() * a.size.collisionScale()) {
+                if (!a.remove and !l.remove and rlm.vector2Distance(a.pos, l.pos) < a.size.size() * a.size.collisionScale()) {
                     l.remove = true;
                     try hitAsteroid(a, rlm.vector2Normalize(state.ship.vel));
                 }
@@ -544,7 +552,7 @@ fn update() !void {
 
             // check for projectile v. asteroid collision
             for (state.projectiles.items) |*p| {
-                if (!p.remove and rlm.vector2Distance(a.pos, p.pos) < a.size.size() * a.size.collisionScale()) {
+                if (!a.remove and !p.remove and rlm.vector2Distance(a.pos, p.pos) < a.size.size() * a.size.collisionScale()) {
                     p.remove = true;
                     if (p.player) {
                         state.shotsHit += 1;
@@ -678,6 +686,7 @@ fn update() !void {
         if (state.lives == 0) {
             // Last life lost: enter game over screen instead of auto-resetting.
             state.gameOver = true;
+            state.lastBerzerkCoinTime = state.now;
         } else {
             try resetStage();
         }
@@ -1338,6 +1347,7 @@ pub fn main() !void {
         .thrust = try rl.loadSound("resources/thrust.wav"),
         .asteroid = try rl.loadSound("resources/asteroid.wav"),
         .explode = try rl.loadSound("resources/explode.wav"),
+        .berzerkCoin = try rl.loadSound("resources/berzerk_coin_detected.wav"),
     };
 
     try resetGame();
