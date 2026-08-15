@@ -699,6 +699,13 @@ fn update() !void {
     }
     state.lastBloop = state.bloop;
 
+    // Field transition: only transition when every asteroid has been
+    // destroyed, including all the small fragments that result from
+    // breaking down large and medium rocks.  The asteroids_queue holds
+    // the children created by hitAsteroid() during this same frame, so
+    // checking it prevents a premature transition when the last big or
+    // medium rock is split.  Aliens do NOT prevent the transition; they
+    // are carried over to the new field (see resetAsteroids).
     if (!state.gameOver and state.asteroids.items.len == 0 and state.asteroids_queue.items.len == 0) {
         try resetAsteroids();
     }
@@ -1188,6 +1195,22 @@ fn render() !void {
 
 fn resetAsteroids() !void {
     try state.asteroids.resize(state.allocator, 0);
+
+    // Aliens are intentionally NOT cleared here — they are carried over
+    // to the new field along with the player, matching the original
+    // game's behaviour.  However, we do clear any in-flight alien
+    // projectiles so the player is not unfairly hit during the
+    // transition to the new field.
+    {
+        var i: usize = 0;
+        while (i < state.projectiles.items.len) {
+            if (!state.projectiles.items[i].player) {
+                _ = state.projectiles.swapRemove(i);
+            } else {
+                i += 1;
+            }
+        }
+    }
 
     // The minimum distance an asteroid may spawn from the player's ship is one
     // grid square of a FIELD_GRID_DIV x FIELD_GRID_DIV division of the field.
