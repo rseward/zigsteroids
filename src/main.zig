@@ -870,8 +870,6 @@ fn qrcColor() rl.Color {
         return getMyColor(MyColor.bright_white);
     }
     const qrcPct: f32 = 1.0 - @as(f32, @floatFromInt(state.quantumRematerizationCount)) / @as(f32, @floatFromInt(QUANTUM_REMATERIZATION_LIMIT));
-    //var a = qrcPct;
-    //qrcPct = a;
 
     const c1 = rl.Color.dark_blue;
     const c2 = rl.Color.white;
@@ -879,7 +877,7 @@ fn qrcColor() rl.Color {
     var cnow: rl.Color = rl.Color.white;
     cnow.r = c1.r + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.r - c1.r)) ));
     cnow.g = c1.g + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.g - c1.g)) ));
-    cnow.r = c1.b + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.b - c1.b))));
+    cnow.b = c1.b + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.b - c1.b))));
 
     return cnow;
 }
