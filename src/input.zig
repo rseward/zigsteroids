@@ -25,6 +25,7 @@ pub const Action = enum {
     shoot,
     pause,
     new_game,
+    fullscreen,
 };
 
 const action_count = @typeInfo(Action).@"enum".fields.len;
@@ -447,12 +448,14 @@ pub const Input = struct {
         return switch (action) {
             .rotate_left => self.gamepadButtonDown(.left_face_left),
             .rotate_right => self.gamepadButtonDown(.left_face_right),
-            .thrust => self.gamepadAxis(.right_trigger) > TRIGGER_THRESHOLD,
+            .thrust => self.gamepadAxis(.right_trigger) > TRIGGER_THRESHOLD or
+                self.gamepadButtonDown(.right_face_left),
             .shield => self.gamepadButtonDown(.right_face_right) or
                 self.gamepadAxis(.left_trigger) > TRIGGER_THRESHOLD,
             .shoot => self.gamepadButtonDown(.right_face_down),
             .pause => self.gamepadButtonDown(.middle_right),
             .new_game => self.gamepadButtonDown(.middle_right),
+            .fullscreen => false,
         };
     }
 
@@ -467,6 +470,7 @@ pub const Input = struct {
             .shoot => false,
             .pause => false,
             .new_game => false,
+            .fullscreen => false,
         };
     }
 
@@ -479,6 +483,7 @@ pub const Input = struct {
             .shoot => rl.isKeyPressed(.space) or rl.isMouseButtonPressed(.left),
             .pause => rl.isKeyPressed(.h) or rl.isKeyPressed(.p),
             .new_game => rl.isKeyPressed(.one),
+            .fullscreen => rl.isKeyPressed(.f),
         };
     }
 };

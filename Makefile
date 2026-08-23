@@ -6,6 +6,14 @@ init:
 build:
 	zig build
 
+# Pin to glibc 2.42 (Bazzite's glibc version) so the binary built on this
+# (newer-glibc) host doesn't fail on Bazzite with a GLIBC_x.xx not found
+# error. Uses this host's own root filesystem as the sysroot since it's the
+# same architecture (x86_64) as Bazzite, so its X11/GLX libraries can be
+# used for linking.
+build-bazzite:
+	zig build -Dtarget=x86_64-linux-gnu.2.42 -Dsysroot=/
+
 run:
 	zig build run
 
@@ -21,4 +29,4 @@ install-udev:
 clean:
 	rm -rf zig-out .zig-cache
 
-.PHONY: init build run deps install-udev clean
+.PHONY: init build build-bazzite run deps install-udev clean

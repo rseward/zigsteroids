@@ -9,12 +9,36 @@ const Vector2 = rl.Vector2;
 const input_mod = @import("input.zig");
 
 const THICKNESS = 2.5;
-const SCALE = 38.0;
-const SIZE = Vector2.init(640 * 2, 480 * 2);
+// The base scale value tuned by eye against the original 1280×960 design
+// resolution.  At runtime SCALE is overwritten in main() to account for the
+// actual monitor size (see vector_scaling.md).
+const BASE_SCALE = 38.0;
+var SCALE: f32 = BASE_SCALE;
+
+// Original design resolution that BASE_SCALE / THICKNESS were tuned against.
+const DESIGN_SIZE = Vector2.init(640 * 2, 480 * 2); // 1280×960, 4:3
+
+// Default/fallback game field size; overwritten in main() with the detected
+// monitor resolution so the field scales to the actual display.
+var SIZE = Vector2.init(640 * 2, 480 * 2);
+
+// Offset (in screen pixels) to center the letterboxed playfield.  When the
+// display aspect ratio differs from the 4:3 design ratio, black bars fill
+// the remaining space.
+var RENDER_OFFSET = Vector2.init(0, 0);
+
+// Last-known full screen dimensions, used by the per-frame change check.
+var screen_w: i32 = 0;
+var screen_h: i32 = 0;
 const QUANTUM_REMATERIZATION_LIMIT = 1200;
 const SHIELD_DURATION = 2.0;
 const SHIELD_RECHARGE = 25.0;
-const SHIELD_RADIUS = SCALE * 1.5;
+
+/// Runtime shield radius — derived from the (possibly rescaled) SCALE.
+/// Cannot be a const because SCALE is a var set at runtime.
+fn shieldRadius() f32 {
+    return SCALE * 1.5;
+}
 
 // The asteroid field is divided into a FIELD_GRID_DIV x FIELD_GRID_DIV grid for
 // spawn placement. The width/height of one grid square is the minimum distance an
@@ -404,7 +428,59 @@ fn hitAsteroid(a: *Asteroid, impact: ?Vector2) !void {
     }
 }
 
+/// Query the actual render surface (window or fullscreen) and compute the
+/// largest 4:3 playfield that fits inside it (preserving the design aspect
+/// ratio), then update SIZE, SCALE, and RENDER_OFFSET accordingly.  Black
+/// bars fill any remaining space so the playfield is always centered.
+///
+/// Called once after window creation / fullscreen toggle and every frame in
+/// the main loop to catch runtime size changes (fullscreen toggle, window
+/// resize, Wayland compositor changes).
+fn updateScreenSize() void {
+    const w = rl.getScreenWidth();
+    const h = rl.getScreenHeight();
+    if (w <= 0 or h <= 0) return;
+    screen_w = w;
+    screen_h = h;
+
+    // Uniform scale: the smaller of the x/y ratios against the design size.
+    const render_scale = @min(
+        @as(f32, @floatFromInt(w)) / DESIGN_SIZE.x,
+        @as(f32, @floatFromInt(h)) / DESIGN_SIZE.y,
+    );
+
+    // Letterboxed field preserves the 4:3 design aspect ratio.
+    SIZE = Vector2.init(DESIGN_SIZE.x * render_scale, DESIGN_SIZE.y * render_scale);
+    SCALE = BASE_SCALE * render_scale;
+
+    // Center the field on screen; the surrounding area stays black.
+    RENDER_OFFSET = Vector2.init(
+        (@as(f32, @floatFromInt(w)) - SIZE.x) / 2.0,
+        (@as(f32, @floatFromInt(h)) - SIZE.y) / 2.0,
+    );
+}
+
 fn update() !void {
+    // Fullscreen toggle: always available, regardless of pause/game-over state.
+    // The actual screen-size update is handled by the per-frame check in
+    // main()'s loop (updateScreenSize) which catches the new dimensions one
+    // or two frames after the compositor applies the mode change.
+    if (input.isPressed(.fullscreen)) {
+        if (rl.isWindowFullscreen()) {
+            // Returning to windowed: maximise so the window fills the desktop.
+            rl.toggleFullscreen();
+            rl.maximizeWindow();
+            const mon = rl.getCurrentMonitor();
+            const mw = rl.getMonitorWidth(mon);
+            const mh = rl.getMonitorHeight(mon);
+            if (mw > 0 and mh > 0) {
+                rl.setWindowSize(mw, mh);
+            }
+        } else {
+            rl.toggleFullscreen();
+        }
+    }
+
     // Pause/unpause handling (disabled during game over screen)
     if (!state.paused and !state.gameOver) {
         if (input.isPressed(.pause)) {
@@ -503,7 +579,7 @@ fn update() !void {
         for (state.projectiles.items) |*p| {
             if (!p.player and !p.remove and state.quantumRematerizationCount==0) {
             if ( (state.now - p.spawn) > 0.15 and rlm.vector2Distance(state.ship.pos, p.pos) < (SCALE * 0.7)) {
-                if (state.shieldActive and rlm.vector2Distance(state.ship.pos, p.pos) < SHIELD_RADIUS) {
+                if (state.shieldActive and rlm.vector2Distance(state.ship.pos, p.pos) < shieldRadius()) {
                     // Shield absorbs alien bullet
                     p.remove = true;
                 } else {
@@ -534,7 +610,7 @@ fn update() !void {
 
             // check for ship v. asteroid collision
             if (!a.remove and state.quantumRematerizationCount==0 and !state.ship.isDead() and rlm.vector2Distance(a.pos, state.ship.pos) < a.size.size() * a.size.collisionScale()) {
-                if (state.shieldActive and rlm.vector2Distance(a.pos, state.ship.pos) < SHIELD_RADIUS) {
+                if (state.shieldActive and rlm.vector2Distance(a.pos, state.ship.pos) < shieldRadius()) {
                     // Shield destroys asteroid (splits normally)
                     try hitAsteroid(a, rlm.vector2Normalize(state.ship.vel));
                 } else {
@@ -627,7 +703,7 @@ fn update() !void {
 
             // check alien v. ship
             if (!a.remove and rlm.vector2Distance(a.pos, state.ship.pos) < a.size.collisionSize()) {
-                if (state.shieldActive and rlm.vector2Distance(a.pos, state.ship.pos) < SHIELD_RADIUS) {
+                if (state.shieldActive and rlm.vector2Distance(a.pos, state.ship.pos) < shieldRadius()) {
                     // Shield destroys alien
                     a.remove = true;
                 } else if (!state.ship.isDead()) {
@@ -840,6 +916,7 @@ fn drawHelpBox() void {
         "SPACE/CLICK Shoot",
         "H / P       Pause",
         "1           New Game",
+        "F           Fullscreen",
     };
 
     // Gamepad control lines (shown only when a gamepad is connected)
@@ -847,7 +924,7 @@ fn drawHelpBox() void {
         "",
         "Gamepad",
         "LS / D-PAD  Rotate",
-        "RT          Thrust",
+        "RT / X      Thrust",
         "B / LT      Shields",
         "A           Shoot",
         "Start       Pause",
@@ -1160,9 +1237,9 @@ fn render() !void {
         const elapsed = state.now - state.shieldActivateTime;
         const pulse = 0.6 + 0.4 * @sin(elapsed * math.tau * 8);
         const shield_color = rl.Color.init(180, 0, 255, @as(u8, @intFromFloat(pulse * 220)));
-        rl.drawCircleV(state.ship.pos, SHIELD_RADIUS, shield_color);
+        rl.drawCircleV(state.ship.pos, shieldRadius(), shield_color);
         const ring_color = rl.Color.init(220, 100, 255, @as(u8, @intFromFloat(pulse * 255)));
-        rl.drawCircleLinesV(state.ship.pos, SHIELD_RADIUS, ring_color);
+        rl.drawCircleLinesV(state.ship.pos, shieldRadius(), ring_color);
     }
 
     // Draw quantum phase-in border (strongest purple at start, fading to black)
@@ -1309,8 +1386,69 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     defer std.debug.assert(gpa.deinit() == .ok);
 
-    rl.initWindow(SIZE.x, SIZE.y, "LARGE SPACE ROCKS");
-    rl.setWindowPosition(100, 100);
+    // Parse command-line arguments.
+    var start_fullscreen = false;
+    {
+        var args = try std.process.argsAlloc(allocator);
+        defer std.process.argsFree(allocator, args);
+        for (args[1..]) |arg| {
+            if (std.mem.eql(u8, arg, "-f")) start_fullscreen = true;
+            if (std.mem.eql(u8, arg, "-w")) start_fullscreen = false;
+            if (std.mem.eql(u8, arg, "-h") or std.mem.eql(u8, arg, "--help")) {
+                const usage =
+                    \\Large Space Rocks
+                    \\
+                    \\Usage: lsr [OPTIONS]
+                    \\
+                    \\Options:
+                    \\  -f          Start in fullscreen mode
+                    \\  -w          Start in windowed mode (default)
+                    \\  -h, --help  Show this help message and exit
+                    \\
+                    \\In-game controls:
+                    \\  LEFT/RIGHT  Rotate ship
+                    \\  UP / W      Thrust
+                    \\  DOWN        Shields
+                    \\  SPACE/CLICK Shoot
+                    \\  H / P       Pause / Help
+                    \\  1           New Game
+                    \\  F           Toggle fullscreen
+                    \\
+                ;
+                std.debug.print("{s}\n", .{usage});
+                return;
+            }
+        }
+    }
+
+    // Make the window resizable so the compositor can maximize/fullscreen it.
+    rl.setConfigFlags(.{ .window_resizable = true });
+
+    rl.initWindow(@intFromFloat(SIZE.x), @intFromFloat(SIZE.y), "LARGE SPACE ROCKS");
+
+    if (start_fullscreen) {
+        rl.toggleFullscreen();
+    } else {
+        // On Wayland the window starts at the initial 1280×960 size and stays
+        // there unless we actively request a larger surface.  Try two things:
+        // 1) maximise the window (fills the available desktop on Wayland/X11)
+        // 2) also try monitor detection + setWindowSize as a fallback for
+        //    compositors that don't honour maximise
+        rl.maximizeWindow();
+        const mon = rl.getCurrentMonitor();
+        const mw = rl.getMonitorWidth(mon);
+        const mh = rl.getMonitorHeight(mon);
+        if (mw > 0 and mh > 0) {
+            rl.setWindowSize(mw, mh);
+        }
+    }
+
+    // Read the actual render surface dimensions and derive SIZE / SCALE /
+    // RENDER_OFFSET from them.  On Wayland the compositor may take a frame
+    // or two to apply the resize/maximise/fullscreen — the per-frame check
+    // in the main loop catches the final dimensions when they arrive.
+    updateScreenSize();
+
     rl.setTargetFPS(60);
 
     input = input_mod.Input.init();
@@ -1359,6 +1497,15 @@ pub fn main() !void {
         state.delta = rl.getFrameTime();
         state.now += state.delta;
 
+        // Detect screen size changes (fullscreen toggle, window resize,
+        // Wayland compositor changes) and update SIZE / SCALE / offset to
+        // match so the playfield is always centered without clipping.
+        if (rl.getScreenWidth() != screen_w or
+            rl.getScreenHeight() != screen_h)
+        {
+            updateScreenSize();
+        }
+
         input.update();
 
         try update();
@@ -1367,6 +1514,18 @@ pub fn main() !void {
         defer rl.endDrawing();
 
         rl.clearBackground(rl.Color.black);
+
+        // Center the letterboxed playfield on screen via a 2D camera that
+        // translates all rendering by RENDER_OFFSET.  Black bars (outside
+        // the 4:3 field) are already cleared above.
+        const camera = rl.Camera2D{
+            .offset = RENDER_OFFSET,
+            .target = Vector2.init(0, 0),
+            .rotation = 0,
+            .zoom = 1,
+        };
+        camera.begin();
+        defer camera.end();
 
         try render();
         state.frame += 1;

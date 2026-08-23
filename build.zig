@@ -95,6 +95,10 @@ pub fn build(b: *std.Build) void {
             "usr/lib",
             b.pathJoin(&.{ "lib", multiarch }),
             "lib",
+            // Fedora/RHEL-style layout (e.g. Bazzite), which keeps 64-bit libs
+            // under lib64 instead of a Debian multiarch subdirectory.
+            "usr/lib64",
+            "lib64",
         };
         const inc_dirs = [_][]const u8{
             "usr/include",
