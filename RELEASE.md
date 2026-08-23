@@ -1,3 +1,11 @@
+# 0.5.0
+
+- Added fullscreen and resolution support — start with `-f` for fullscreen or `-w` for windowed mode (default), press F to toggle at any time, and the game adapts to your display resolution on Wayland and X11 with the 4:3 playfield centered and letterboxed
+- Fixed field transitions — large and medium asteroids must now be fully broken down into small fragments before the next field appears, and aliens carry over to the new field instead of blocking the transition
+- Vector graphics now scale proportionally to your screen size, so ships and asteroids look right on any monitor from handhelds to desktops
+- Added the X button on Xbox controllers as an alternative thrust button alongside RT
+- Added a "coin detected in pocket" sound on the game over screen and a Bazzite cross-compile target (`make build-bazzite`)
+
 # 0.4.0
 
 - Added Xbox controller support — rotate with the left stick or D-pad (analog stick gives variable rotation speed), thrust with RT, shield with B/LT, shoot with A, and pause or start a new game with Start; ships with Linux udev rules and an automatic fallback to joydev
