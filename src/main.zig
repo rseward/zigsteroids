@@ -865,14 +865,18 @@ const SHIP_LINES = [_]Vector2{
 };
 
 // quantumRematerizationCount coloring of the ship as it materializes.
+// The ship transitions from purple to white as the quantum rematerization
+// countdown progresses, giving the visual effect of phasing in from a
+// quantum state to full materialization.
 fn qrcColor() rl.Color {
     if (state.quantumRematerizationCount==0) {
         return getMyColor(MyColor.bright_white);
     }
     const qrcPct: f32 = 1.0 - @as(f32, @floatFromInt(state.quantumRematerizationCount)) / @as(f32, @floatFromInt(QUANTUM_REMATERIZATION_LIMIT));
 
-    const c1 = rl.Color.dark_blue;
-    const c2 = rl.Color.white;
+    // Interpolate from purple (quantum state) to white (fully materialized).
+    const c1 = rl.Color.purple;   // (200, 122, 255) — quantum phase-in color
+    const c2 = rl.Color.white;    // (255, 255, 255) — fully materialized
 
     var cnow: rl.Color = rl.Color.white;
     cnow.r = c1.r + @as(u8, @intFromFloat(qrcPct * @as(f32, @floatFromInt(c2.r - c1.r)) ));
